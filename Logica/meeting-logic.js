@@ -332,16 +332,22 @@ async function loadAvailablePassengers() {
 
     availablePaxListener = supabase.database().ref('meeting/participants').on('value', snap => {
         const all = snap.val() || {};
-        if (!myLocId) {
+        const myLocIdStr = String(myLocId || "").trim();
+        if (!myLocIdStr) {
             list.innerHTML = '<div class="empty-state"><p>Selecione um local de reunião primeiro.</p></div>';
             return;
         }
 
-        const waiting = Object.values(all).filter(p =>
-            p.role === 'passenger' && 
-            (p.embarkStatus === 'waiting' || p.embarkStatus === 'confirmed') &&
-            p.uid !== currentVendorUid && String(p.locationId) === String(myLocId)
-        );
+        const waiting = Object.values(all).filter(p => {
+            const isPax = p.role === 'passenger';
+            const isActive = (p.embarkStatus === 'waiting' || p.embarkStatus === 'confirmed');
+            const isNotMe = p.uid !== currentVendorUid;
+            const sameLoc = String(p.locationId || "").trim() === myLocIdStr;
+            return isPax && isActive && isNotMe && sameLoc;
+        });
+
+        console.log(`[DEBUG] Participantes: ${Object.keys(all).length} | Filtrados: ${waiting.length} | Meu Local: ${myLocIdStr}`);
+
         if (!list) return;
         list.innerHTML = '';
         if (!waiting.length) {
