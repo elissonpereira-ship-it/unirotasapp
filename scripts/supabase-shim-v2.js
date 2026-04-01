@@ -50,6 +50,10 @@
         const p = path.split('/').filter(Boolean);
         const q = (t) => _realSB.from(t);
         try {
+            if (path === 'usuarios') {
+                const {data} = await q('usuarios').select('*');
+                return _toMap(data, 'uid');
+            }
             if (p[0]==='usuarios' && p.length===2) {
                 const {data} = await q('usuarios').select('*').eq('uid', p[1]).limit(1);
                 return data && data.length ? data[0] : null;
