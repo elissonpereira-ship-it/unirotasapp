@@ -339,8 +339,15 @@ async function enterApp(uid) {
 
         initSupportMessageListener(uid);
         showScreen('dashboard');
-        if (typeof loadMeetingScreen === 'function') loadMeetingScreen();
-        if (typeof loadEconomyStats === 'function') loadEconomyStats();
+        
+        // 👉 PRIORIDADE MÁXIMA: Ligar UI e GPS antes de qualquer outra coisa
+        if (window.lucide) lucide.createIcons();
+        startTracking();
+
+        // 👉 Módulos isolados para que um erro não trave o resto do app
+        try { if (typeof loadMeetingScreen === 'function') loadMeetingScreen(); } catch(e) { console.error("Erro Reunião", e); }
+        try { if (typeof loadEconomyStats === 'function') loadEconomyStats(); } catch(e) { console.error("Erro Economia", e); }
+        
     } catch (e) {
         console.error("EnterApp Error:", e);
     }
