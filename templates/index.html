@@ -685,89 +685,78 @@
             </div>
 
             <!-- Modal Ver Rota de Motorista -->
-            <div id="modal-driver-route-detail" class="modal-content glass-panel hidden" style="max-width:560px;">
+            <div id="modal-driver-route-detail" class="modal-content glass-panel hidden" style="max-width:850px;">
                 <div class="modal-header-actions">
-                    <h3 id="driver-route-modal-title"><i data-lucide="route"></i> Trajeto do Motorista</h3>
+                    <h3 id="driver-route-modal-title"><i data-lucide="route"></i> Trajeto e Reembolso do Motorista</h3>
                     <button class="icon-btn-sm close-modal"><i data-lucide="x"></i></button>
                 </div>
-                <div class="modal-body" style="padding:16px; overflow-y:auto; max-height:78vh;">
+                <div class="modal-body" style="padding:16px; overflow-y:auto; max-height:82vh;">
 
-                    <!-- MAPA 1: Rota Real -->
-                    <div style="margin-bottom:28px;">
-                        <div
-                            style="font-size:0.72rem;font-weight:700;color:#BF9A56;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
-                            <i data-lucide="map-pin" style="width:14px;height:14px;"></i> Rota Real Percorrida
-                        </div>
-                        <div id="real-route-map"
-                            style="height:230px;width:100%;border-radius:14px;border:1px solid rgba(191,154,86,0.3);background:#0f172a;">
-                        </div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px;">
-                            <div
-                                style="background:rgba(191,154,86,0.1);border:1px solid rgba(191,154,86,0.2);border-radius:12px;padding:10px;text-align:center;">
-                                <div
-                                    style="font-size:0.58rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:3px;">
-                                    KM Real</div>
-                                <div id="real-km-val" style="font-size:1.1rem;font-weight:700;color:#BF9A56;">-- km
-                                </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+                        
+                        <!-- MAPA 1: IDA REAL -->
+                        <div style="padding: 16px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 16px;">
+                            <div style="font-size:0.75rem;font-weight:700;color:var(--success);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                                <i data-lucide="map-pin" style="width:16px;height:16px;"></i> 1. Rota Real (Ida)
                             </div>
-                            <div
-                                style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:10px;text-align:center;">
-                                <div
-                                    style="font-size:0.58rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:3px;">
-                                    A Pagar</div>
-                                <div id="real-pay-val" style="font-size:1.1rem;font-weight:700;color:#10b981;">R$ --
-                                </div>
-                            </div>
-                            <div
-                                style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.2);border-radius:12px;padding:10px;text-align:center;">
-                                <div
-                                    style="font-size:0.58rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:3px;">
-                                    Caronas</div>
-                                <div id="real-passengers-val" style="font-size:1.1rem;font-weight:700;color:#8b5cf6;">0
-                                </div>
-                            </div>
+                            <div id="real-route-map-outbound" style="height:250px;width:100%;border-radius:14px;border:1px solid rgba(16,185,129,0.3);background:#0f172a;"></div>
+                            <div id="real-outbound-stops" style="margin-top:12px;"></div>
                         </div>
-                        <div id="real-vehicle-info"
-                            style="text-align:center;margin-top:6px;font-size:0.7rem;color:var(--text-secondary);">
+
+                        <!-- MAPA 2: VOLTA REAL -->
+                        <div style="padding: 16px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 16px;">
+                            <div style="font-size:0.75rem;font-weight:700;color:var(--warning);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                                <i data-lucide="home" style="width:16px;height:16px;"></i> 2. Rota Real (Volta)
+                            </div>
+                            <div id="real-route-map-return" style="height:250px;width:100%;border-radius:14px;border:1px solid rgba(245,158,11,0.3);background:#0f172a;"></div>
+                            <div id="real-return-stops" style="margin-top:12px;"></div>
                         </div>
-                        <div id="real-route-stops" style="margin-top:12px;"></div>
+
                     </div>
 
                     <div style="height:1px;background:rgba(255,255,255,0.06);margin-bottom:22px;"></div>
 
-                    <!-- MAPA 2: Rota Prevista -->
-                    <div>
-                        <div
-                            style="font-size:0.72rem;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
-                            <i data-lucide="clipboard-list" style="width:14px;height:14px;"></i> Rota Prevista
-                            (Estimativa)
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+                        
+                        <!-- MAPA 3: PREVISTO (COMPLETO) -->
+                        <div style="padding: 16px; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.2); border-radius: 16px;">
+                            <div style="font-size:0.75rem;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                                <i data-lucide="clipboard-list" style="width:16px;height:16px;"></i> 3. Rota Prevista Original
+                            </div>
+                            <div id="predicted-route-map" style="height:280px;width:100%;border-radius:14px;border:1px solid rgba(59,130,246,0.3);background:#0f172a;"></div>
+                            <div id="pred-route-stops" style="margin-top:12px;"></div>
                         </div>
-                        <div id="predicted-route-map"
-                            style="height:230px;width:100%;border-radius:14px;border:1px solid rgba(59,130,246,0.3);background:#0f172a;">
-                        </div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
-                            <div
-                                style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);border-radius:12px;padding:10px;text-align:center;">
-                                <div
-                                    style="font-size:0.58rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:3px;">
-                                    KM Previsto</div>
-                                <div id="pred-km-val" style="font-size:1.1rem;font-weight:700;color:#3b82f6;">-- km
+
+                        <!-- CÁLCULOS E AUDITORIA -->
+                        <div style="padding: 16px; background: rgba(191,154,86,0.05); border: 2px solid rgba(191,154,86,0.3); border-radius: 16px; height:100%;">
+                            <h4 style="color:var(--gold); margin-bottom:16px; font-size:1.1rem; border-bottom:1px solid rgba(191,154,86,0.2); padding-bottom:8px;">
+                                Resumo da Viagem
+                            </h4>
+                            
+                            <div id="real-vehicle-info" style="margin-bottom:12px; font-weight:700; font-size:0.9rem; color:var(--text);"></div>
+                            <div id="real-passengers-info" style="margin-bottom:20px; font-size:0.85rem; color:var(--muted); line-height:1.5;"></div>
+
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                                <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px; text-align:center;">
+                                    <div style="font-size:0.6rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">Total KM Real (Ida+Volta)</div>
+                                    <div id="real-km-val" style="font-size:1.2rem;font-weight:800;color:var(--success);">-- km</div>
+                                    <div style="font-size:0.6rem;color:var(--text-secondary);text-transform:uppercase;margin-top:10px;">Pagamento Faturado</div>
+                                    <div id="real-pay-val" style="font-size:1.4rem;font-weight:900;color:var(--gold);">R$ --</div>
+                                </div>
+                                <div style="background:var(--surface); border:1px dashed var(--border); border-radius:12px; padding:12px; text-align:center;">
+                                    <div style="font-size:0.6rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">KM Previsto Calculado</div>
+                                    <div id="pred-km-val" style="font-size:1.2rem;font-weight:800;color:#3b82f6;">-- km</div>
+                                    <div style="font-size:0.6rem;color:var(--text-secondary);text-transform:uppercase;margin-top:10px;">Custo Desenhado</div>
+                                    <div id="pred-pay-val" style="font-size:1.4rem;font-weight:900;color:var(--muted);">R$ --</div>
                                 </div>
                             </div>
-                            <div
-                                style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);border-radius:12px;padding:10px;text-align:center;">
-                                <div
-                                    style="font-size:0.58rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:3px;">
-                                    A Pagar Previsto</div>
-                                <div id="pred-pay-val" style="font-size:1.1rem;font-weight:700;color:#f59e0b;">R$ --
-                                </div>
-                            </div>
                         </div>
-                        <div id="pred-route-stops" style="margin-top:12px;"></div>
+
                     </div>
+
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary close-modal" style="width:100%;">Fechar</button>
+                    <button class="btn btn-secondary close-modal" style="width:100%;">Fechar Auditoria</button>
                 </div>
             </div>
 
