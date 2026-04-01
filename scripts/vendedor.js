@@ -496,16 +496,16 @@ function stopTracking() {
 
 // ── HEADER & CARDS ───────────────────────────────────────────────────────
 function updateHeaderName(name) {
-    const el = document.getElementById('header-user-name');
+    const el = document.getElementById('header-first-name');
     if (el) el.textContent = name;
 }
 function updateGreeting() {
-    const el = document.getElementById('greeting');
+    const el = document.getElementById('header-greeting');
     if (!el) return;
     const hr = new Date().getHours();
-    let g = 'Boa noite';
-    if (hr < 12) g = 'Bom dia'; else if (hr < 18) g = 'Boa tarde';
-    el.textContent = `${g}, ${currentVendorName}!`;
+    let g = 'Boa noite 🌙';
+    if (hr < 12) g = 'Bom dia ☀️'; else if (hr < 18) g = 'Boa tarde ⛅';
+    el.textContent = g;
 }
 function updateQuickCards() {
     const el = document.getElementById('status-summary');
@@ -541,8 +541,10 @@ function initSupportMessageListener(uid) {
 async function enterApp(uid) {
     currentVendorUid = uid;
     const screenLogin = document.getElementById('screen-login'), screenApp = document.getElementById('screen-app');
+    const bottomNav = document.querySelector('.bottom-nav');
     if (screenLogin) { screenLogin.classList.add('hidden'); screenLogin.style.display = 'none'; }
     if (screenApp) { screenApp.classList.remove('hidden'); screenApp.style.display = 'flex'; }
+    if (bottomNav) { bottomNav.style.display = 'flex'; }
     
     try {
         const snap = await supabase.database().ref('usuarios/' + uid).once('value');
@@ -589,7 +591,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (user) enterApp(user.uid);
             else {
                 const sl = document.getElementById('screen-login');
+                const bottomNav = document.querySelector('.bottom-nav');
                 if (sl) { sl.classList.remove('hidden'); sl.style.display = 'flex'; }
+                if (bottomNav) { bottomNav.style.display = 'none'; }
             }
         });
     }
