@@ -1,10 +1,9 @@
-/* UniRotas – Supabase Data & Auth Driver V2.1 (Anti-Conflict) */
+/* UniRotas – Supabase Data & Auth Driver V2.2 (Full Compatibility) */
 (function() {
-    console.log("UniRotas Shim V2.1: Initializing...");
+    console.log("UniRotas Shim V2.2: Initializing...");
     const _SUPA_URL = 'https://ajconwarkeunpixqngnq.supabase.co';
     const _SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFqY29ud2Fya2V1bnBpeHFuZ25xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4OTQ2MDksImV4cCI6MjA5MDQ3MDYwOX0.HFHmApPMYKT_GZLJwDAY8IZSaM38CjVUN1amAah4wZM';
     
-    // Captura o cliente original ANTES de qualquer coisa
     if (!window.supabase || !window.supabase.createClient) {
         console.error("Erro: Biblioteca Supabase não encontrada!");
         return;
@@ -67,7 +66,7 @@
         const subId = Math.random().toString(36).substring(7);
         _readPath(path).then(d => cb({val:()=>d}));
 
-        const channel = _realSB.channel('v3_' + subId)
+        const channel = _realSB.channel('v4_' + subId)
             .on('postgres_changes', {event:'*', schema:'public', table}, async () => {
                 const d = await _readPath(path);
                 cb({val:()=>d});
@@ -99,19 +98,44 @@
                 await _realSB.from('meeting_participants').update(up).eq('vendor_uid', p[2]);
             }
         }
+        async push(d) {
+            const p = this.path.split('/').filter(Boolean);
+            if (p[0]==='mensagens'&&p.length===2) {
+                await _realSB.from('mensagens').insert({
+                    vendor_uid: p[1], sender: d.sender, content: d.text, ts: new Date().toISOString()
+                });
+            }
+        }
     }
 
-    // Criamos o objeto de compatibilidade sem destruir o window.supabase original
-    const _firebaseCompatibility = {
-        database: () => ({ ref: (p) => new _Ref(p) }),
-        auth: () => _realSB.auth 
+    // FIREBASE COMPATIBILITY WRAPPER
+    const _auth = {
+        get currentUser() {
+            const user = _realSB.auth.session?.user || null;
+            return user ? { uid: user.id } : null;
+        },
+        onAuthStateChanged(cb) {
+            _realSB.auth.getSession().then(({data:{session}}) => {
+                cb(session?.user ? { uid: session.user.id } : null);
+            });
+            _realSB.auth.onAuthStateChange((_, session) => {
+                cb(session?.user ? { uid: session.user.id } : null);
+            });
+        },
+        async signInWithEmailAndPassword(email, password) {
+            const { data, error } = await _realSB.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+            return { user: { uid: data.user.id } };
+        },
+        async signOut() { return await _realSB.auth.signOut(); }
     };
 
-    // Aplicamos às variáveis que o app do vendedor usa
-    window.firebase = _firebaseCompatibility;
-    // Opcional: só sobrescrevemos o database() dentro do window.supabase se necessário
-    window.supabase.database = _firebaseCompatibility.database;
-    window.supabase.auth = () => _realSB.auth;
+    window.firebase = {
+        database: () => ({ ref: (p) => new _Ref(p) }),
+        auth: () => _auth
+    };
+    window.supabase.database = window.firebase.database;
+    window.supabase.auth = () => _auth;
 
-    console.log("UniRotas Shim V2.1: Ready.");
+    console.log("UniRotas Shim V2.2: Ready.");
 })();
