@@ -1,30 +1,49 @@
-/* UniRotas – Supabase Data & Auth Driver V2.3 (Final Fix) */
+/* UniRotas – Supabase Data & Auth Driver V2.4 (Ultra - Realtime & Full Mapping) */
 (function() {
-    console.log("UniRotas Shim V2.3: Initializing...");
+    console.log("UniRotas Shim V2.4: Initializing...");
     const _SUPA_URL = 'https://ajconwarkeunpixqngnq.supabase.co';
     const _SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFqY29ud2Fya2V1bnBpeHFuZ25xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4OTQ2MDksImV4cCI6MjA5MDQ3MDYwOX0.HFHmApPMYKT_GZLJwDAY8IZSaM38CjVUN1amAah4wZM';
     
-    if (!window.supabase || !window.supabase.createClient) {
-        console.error("Erro: Biblioteca Supabase não encontrada!");
-        return;
-    }
+    if (!window.supabase || !window.supabase.createClient) return;
     const _realSB = window.supabase.createClient(_SUPA_URL, _SUPA_KEY);
     let _cachedUser = null;
 
-    function _toMap(arr, key, fn) {
+    function _toMap(arr, key, fn=null) {
         if (!arr || !arr.length) return {};
-        const r = {};
-        arr.forEach(row => { r[row[key]] = fn ? fn(row) : row; });
-        return r;
+        const r = {}; arr.forEach(row => { r[row[key]] = fn ? fn(row) : row; }); return r;
     }
-
+    
+    // De-Para Estrutura Real -> BD
     function _normPart(row) {
         if (!row) return null;
         return { uid: row.vendor_uid, name: row.name, role: row.role, embarkStatus: row.embark_status,
             joinedAt: row.joined_at ? new Date(row.joined_at).getTime() : null, locationId: row.location_id,
             locationName: row.location_name, locationAddress: row.location_address, region: row.region,
-            lat: row.lat, lng: row.lng, phase: row.phase, presenceConfirmed: row.presence_confirmed,
-            driverUid: row.driver_uid, driverName: row.driver_name, status: row.status, passengers: row.passengers };
+            lat: row.lat, lng: row.lng, embarkLat: row.embark_lat, embarkLng: row.embark_lng, phase: row.phase, 
+            presenceConfirmed: row.presence_confirmed, driverUid: row.driver_uid, driverName: row.driver_name, 
+            status: row.status, passengers: row.passengers };
+    }
+    function _denormPart(d) {
+        const r = {};
+        if (d.uid !== undefined) r.vendor_uid = d.uid;
+        if (d.name !== undefined) r.name = d.name;
+        if (d.role !== undefined) r.role = d.role;
+        if (d.embarkStatus !== undefined) r.embark_status = d.embarkStatus;
+        if (d.locationId !== undefined) r.location_id = d.locationId;
+        if (d.locationName !== undefined) r.location_name = d.locationName;
+        if (d.locationAddress !== undefined) r.location_address = d.locationAddress;
+        if (d.region !== undefined) r.region = d.region;
+        if (d.lat !== undefined) r.lat = d.lat;
+        if (d.lng !== undefined) r.lng = d.lng;
+        if (d.phase !== undefined) r.phase = d.phase;
+        if (d.presenceConfirmed !== undefined) r.presence_confirmed = d.presenceConfirmed;
+        if (d.driverUid !== undefined) r.driver_uid = d.driverUid;
+        if (d.driverName !== undefined) r.driver_name = d.driverName;
+        if (d.status !== undefined) r.status = d.status;
+        if (d.passengers !== undefined) r.passengers = d.passengers;
+        if (d.embarkLat !== undefined) r.embark_lat = d.embarkLat;
+        if (d.embarkLng !== undefined) r.embark_lng = d.embarkLng;
+        return r;
     }
 
     async function _readPath(path) {
@@ -63,6 +82,27 @@
         } catch(e) { return null; }
     }
 
+    const _activeSubs = {};
+    function _subscribe(path, cb) {
+        const p = path.split('/').filter(Boolean);
+        let table = 'meeting_participants'; 
+        if (p[0] === 'vendedores') table = 'vendedores';
+        else if (p[0] === 'mensagens') table = 'mensagens';
+        else if (p[0] === 'meeting') {
+            if (p[1] === 'notifications') table = 'meeting_notifications';
+            else if (p[1] === 'driverPickups') table = 'meeting_driver_pickups';
+        }
+
+        _readPath(path).then(data => cb({ val: () => data }));
+        const id = 'shim_' + Math.random().toString(36).substring(7);
+        const channel = _realSB.channel(id).on('postgres_changes', { event: '*', schema: 'public', table: table }, async () => { 
+            const data = await _readPath(path); 
+            cb({ val: () => data }); 
+            if(window.lucide) window.lucide.createIcons(); // Garante icones nas telas em tempo real
+        }).subscribe();
+        _activeSubs[path] = channel;
+    }
+
     const _auth = {
         get currentUser() { return _cachedUser; },
         onAuthStateChanged(cb) {
@@ -87,54 +127,60 @@
     class _Ref {
         constructor(path) { this.path = path; }
         async once() { const d = await _readPath(this.path); return {val:()=>d}; }
-        on(ev, cb) { 
-            const p = this.path.split('/').filter(Boolean);
-            let table = '';
-            if (p[0]==='meeting'&&p[1]==='participants') table = 'meeting_participants';
-            if (p[0]==='meeting'&&p[1]==='notifications') table = 'meeting_notifications';
-            if (!table) return cb;
-            
-            _readPath(this.path).then(d => cb({val:()=>d}));
-            const subId = Math.random().toString(36).substring(7);
-            const channel = _realSB.channel('vfinal_' + subId)
-                .on('postgres_changes', {event:'*', schema:'public', table}, async () => {
-                    const d = await _readPath(this.path);
-                    cb({val:()=>d});
-                }).subscribe();
-            return cb;
-        }
-        off() {}
+        
+        on(ev, cb) { if (ev === 'value') _subscribe(this.path, cb); return cb; }
+        
+        off() { if (_activeSubs[this.path]) { _realSB.removeChannel(_activeSubs[this.path]); delete _activeSubs[this.path]; } }
+        
         async set(d) {
             const p = this.path.split('/').filter(Boolean);
             if (p[0]==='meeting'&&p[1]==='participants'&&p.length===3) {
-                await _realSB.from('meeting_participants').upsert({
-                    vendor_uid: p[2], name: d.name, role: d.role, embark_status: d.embarkStatus,
-                    location_id: d.locationId, status: d.status, lat: d.lat, lng: d.lng, joined_at: new Date().toISOString()
-                });
+                 await _realSB.from('meeting_participants').upsert({ ..._denormPart({ uid: p[2], ...d }), joined_at: new Date().toISOString() });
             }
         }
+        
         async update(d) {
             const p = this.path.split('/').filter(Boolean);
             if (p[0]==='meeting'&&p[1]==='participants'&&p.length===3) {
-                const up = {};
-                if (d.embarkStatus) up.embark_status = d.embarkStatus;
-                await _realSB.from('meeting_participants').update(up).eq('vendor_uid', p[2]);
+                await _realSB.from('meeting_participants').update(_denormPart(d)).eq('vendor_uid', p[2]);
+            }
+            if (p[0]==='meeting'&&p[1]==='notifications'&&p.length===3) {
+                await _realSB.from('meeting_notifications').update({handled: d.handled}).eq('vendor_uid', p[2]);
+            }
+            if (p[0]==='vendedores'&&p.length===2) {
+                await _realSB.from('vendedores').update({lat: d.lat, lon: d.lon, status: d.status}).eq('uid', p[1]);
             }
         }
+        
         async push(d) {
             const p = this.path.split('/').filter(Boolean);
             if (p[0]==='mensagens'&&p.length===2) {
                 await _realSB.from('mensagens').insert({ vendor_uid: p[1], sender: d.sender, content: d.text, ts: new Date().toISOString() });
             }
         }
+
+        async remove() {
+            const p = this.path.split('/').filter(Boolean);
+            if (p[0]==='meeting' && p[1]==='participants' && p.length===3) {
+                await _realSB.from('meeting_participants').delete().eq('vendor_uid', p[2]);
+            }
+            if (p[0]==='meeting' && p[1]==='driverPickups' && p.length===3) {
+                await _realSB.from('meeting_driver_pickups').delete().eq('driver_uid', p[2]);
+            }
+            if (p[0]==='meeting' && p[1]==='driverPickups' && p.length===4) {
+                await _realSB.from('meeting_driver_pickups').delete().eq('driver_uid', p[2]).eq('passenger_uid', p[3]);
+            }
+        }
+
+        onDisconnect() {
+            // Phantom wrapper to prevent crashes in legacy code.
+            // Supabase Realtime 'presence' is needed for true disconnect tracking.
+            return { update: async () => {} };
+        }
     }
 
-    window.firebase = {
-        database: () => ({ ref: (p) => new _Ref(p) }),
-        auth: () => _auth
-    };
+    window.firebase = { database: () => ({ ref: (p) => new _Ref(p) }), auth: () => _auth };
     window.supabase.database = window.firebase.database;
     window.supabase.auth = () => _auth;
-
-    console.log("UniRotas Shim V2.3: Ready.");
+    console.log("UniRotas Shim V2.4: Ultra Ready.");
 })();
