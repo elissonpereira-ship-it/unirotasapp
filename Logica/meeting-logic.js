@@ -523,18 +523,18 @@ function listenForMeetingNotifications(uid) {
       case 'chat_message':
         const isChatOpen = (document.getElementById('view-chat').style.display !== 'none' && !document.getElementById('view-chat').classList.contains('hidden'));
 
-        if (isChatOpen) {
-          const cMsgs = document.getElementById('chat-messages');
-          if (cMsgs) {
+        // SEMPRE Injeta na caixa do Bate Papo (mesmo no Background)
+        const cMsgs = document.getElementById('chat-messages');
+        if (cMsgs) {
             const b = document.createElement('div');
             b.style.cssText = `max-width:80%; padding:10px 14px; border-radius:18px; margin-bottom:8px; align-self:flex-start; background:var(--surface2); color:var(--text); font-size:0.9rem;`;
             b.innerHTML = `<div>${d.text}</div><div style="font-size:0.65rem; color:var(--muted); margin-top:4px; text-align:right;">${_fmtTime(d.timestamp)}</div>`;
             cMsgs.appendChild(b);
             setTimeout(() => cMsgs.scrollTop = cMsgs.scrollHeight, 50);
-          }
-        } else {
+        }
+
+        if (!isChatOpen) {
           showToast(`💬 ${d.senderName}: ${d.text}`, 'info');
-          // Aciona a bolinha vermelha no Menu Hamburger
           const badge = document.getElementById('badge-driver-chat-qty');
           if (badge) { badge.style.display = 'flex'; badge.innerText = '!'; }
         }
@@ -607,7 +607,7 @@ function openMeetingChat(targetUid, targetName) {
   document.getElementById('vendor-typing').style.display = 'none';
   const cMsgs = document.getElementById('chat-messages');
   if (!cMsgs.innerHTML.includes('Chat Exclusivo com')) {
-    cMsgs.innerHTML = `<div style="text-align:center;color:var(--gold);font-weight:bold;margin:10px 0;">Chat Exclusivo com ${targetName}</div><div style="text-align:center;color:var(--muted);font-size:0.75rem;margin-bottom:10px;">As mensagens sumirão após a viagem.</div>`;
+    cMsgs.insertAdjacentHTML('afterbegin', `<div style="text-align:center;color:var(--gold);font-weight:bold;margin:10px 0;">Chat Exclusivo com ${targetName}</div><div style="text-align:center;color:var(--muted);font-size:0.75rem;margin-bottom:10px;">As mensagens sumirão após a viagem.</div>`);
   }
   showScreen('chat');
 }
