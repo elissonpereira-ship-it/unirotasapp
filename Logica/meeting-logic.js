@@ -519,6 +519,27 @@ function listenForMeetingNotifications(uid){
       case 'return_started':showToast('A chapa esfriou e o motorista ligou o carro de volta pra casa.','info');document.getElementById('passenger-reunion-status')?.classList.add('hidden');document.getElementById('passenger-return-card')?.classList.remove('hidden');break;
       case 'dropoff_request':showToast('Sua garagem? Confirme no app para dar tranquilidade pro Motora!','info');_showPassengerDropoffConfirm(d.driverUid);break;
       case 'driverCancelled':showToast(`💀 Seu Motorista (${d.driverName}) dissolveu a rota. Vá de Ônibus!`,'error');currentDriverUid=null;currentMeetingRole='individual';showMeetingView('meeting-individual');break;
+      
+      case 'chat_message':
+          const isChatOpen = (document.getElementById('view-chat').style.display !== 'none' && !document.getElementById('view-chat').classList.contains('hidden'));
+          
+          if(isChatOpen) {
+             const cMsgs = document.getElementById('chat-messages');
+             if(cMsgs) {
+                const b = document.createElement('div');
+                b.style.cssText = `max-width:80%; padding:10px 14px; border-radius:18px; margin-bottom:8px; align-self:flex-start; background:var(--surface2); color:var(--text); font-size:0.9rem;`;
+                b.innerHTML = `<div>${d.text}</div><div style="font-size:0.65rem; color:var(--muted); margin-top:4px; text-align:right;">${_fmtTime(d.timestamp)}</div>`;
+                cMsgs.appendChild(b);
+                setTimeout(() => cMsgs.scrollTop = cMsgs.scrollHeight, 50);
+             }
+          } else {
+             showToast(`💬 ${d.senderName}: ${d.text}`, 'info');
+             // Aciona a bolinha vermelha no Menu Hamburger
+             const badge = document.getElementById('badge-driver-chat-qty');
+             if(badge) { badge.style.display='flex'; badge.innerText='!'; }
+          }
+          break;
+          
       // ... notifications para motorista ...
       case 'passengerCancelled': if(currentMeetingRole==='driver') showToast(`O Carona ${d.passengerName} fugiu da rota.`,'error'); break;
     }
@@ -562,143 +583,62 @@ function _startAutoHomeTimer(){
 
 // ── Histórico, Chat e demais Helpers
 function _listenChatDot(pUid){ 
-  // Na perspectiva do MOTORISTA, ele escuta os caronas dele.
-  const room = [currentVendorUid, pUid].sort().join('_');
-  if(_chatRoomCounts[room]) return; 
-  _chatRoomCounts[room] = true;
-  _db().ref(`mensagens_reuniao/${room}`).on('child_added', snap => {
-    const m = snap.val();
-    if(m.senderUid !== currentVendorUid && !m.read && currentMeetingRole === 'driver') {
-         // Opcional para o Motorista: Notificá-lo que o passageiro pUid respondeu
-         showToast(`💬 Mensagem de Carona: Nova mensagem.`, 'info');
-    }
-  });
+   // Obsoleta. Substituída pelo sistema de Push de Notificações.
 }
 
-function _initPassengerFloatChat(){
-    // Na perspectiva do PASSAGEIRO, ele está prestando atenção no Driver Atual.
-    if(!currentDriverUid) return;
-    const room = [currentVendorUid, currentDriverUid].sort().join('_');
-    _db().ref(`mensagens_reuniao/${room}`).on('child_added', snap => {
-        const m = snap.val();
-        if(m.senderUid !== currentVendorUid && !m.read && m.senderUid === currentDriverUid) {
-            _showFloatingPassengerBubble();
-        }
-    });
-}
-window._initPassengerFloatChat = _initPassengerFloatChat;
 
-function _showFloatingPassengerBubble(){
-   if(document.getElementById('_float-chat-bubble')) return;
-   const c = document.getElementById('floating-notification-container');
-   if(!c) return;
-   const b = document.createElement('div');
-   b.id = '_float-chat-bubble';
-   b.style.cssText = 'background:var(--surface); border:2px solid var(--gold); border-radius:30px; padding:8px 16px; display:flex; align-items:center; gap:12px; box-shadow:0 8px 30px rgba(0,0,0,0.6); pointer-events:auto; cursor:pointer; width:max-content; align-self:flex-end; animation: slideInRight 0.4s ease-out;';
-   b.innerHTML = `
-     <div style="background:var(--gold); border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; color:var(--bg); position:relative;">
-        <i data-lucide="user" style="width:16px; height:16px;"></i>
-        <div style="position:absolute; top:-4px; right:-4px; background:var(--danger); width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.6rem; color:white; font-weight:800;">!</div>
-     </div>
-     <div style="font-size:0.85rem; font-weight:700; color:var(--gold);">Mensagem de Motorista</div>
-   `;
-   
-   // Arrastar para remover
-   let startY = 0, currentY = 0;
-   b.addEventListener('touchstart', e => startY = e.touches[0].clientY);
-   b.addEventListener('touchmove', e => {
-       currentY = e.touches[0].clientY - startY;
-       if(currentY > 0) b.style.transform = `translateY(${currentY}px)`;
-   });
-   b.addEventListener('touchend', e => {
-       if(currentY > 50) {
-           b.style.opacity = '0';
-           setTimeout(()=>b.remove(), 300);
-           // Atualiza badget no sidebar alertando que ainda há msg não lida
-           document.getElementById('badge-driver-chat-qty').style.display='flex';
-           document.getElementById('badge-driver-chat-qty').innerText='!';
-       } else {
-           b.style.transform = `translateY(0)`;
-       }
-   });
-   b.addEventListener('click', () => {
-       b.remove();
-       document.getElementById('badge-driver-chat-qty').style.display='none';
-       openDriverSpecificChat();
-   });
-   c.appendChild(b);
-   if(window.lucide) lucide.createIcons({root: b});
-}
 
 function openDriverSpecificChat(){
     if(window.closeSidebar) window.closeSidebar();
+    const btn = document.getElementById('badge-driver-chat-qty');
+    if(btn) btn.style.display='none';
     openMeetingChatWithDriver();
 }
 window.openDriverSpecificChat = openDriverSpecificChat;
 function openMeetingChatWithDriver(){if(!currentDriverUid){showToast('Ele não fixou!','error');return;}const n=document.getElementById('passenger-driver-name')?.textContent?.replace('No carro com: ','')||'Motorista';openMeetingChat(currentDriverUid,n);}
 function _notify(sender,text,type,data){if(typeof showGlobalNotification==='function')showGlobalNotification(sender,text,type,data);}
 
-// ── Funções Re-Conectadas de Bate-Papo
-let _currentChatRoom = null;
-let _chatListener = null;
+// ── Funções Re-Conectadas de Bate-Papo Efêmero
 
 function openMeetingChat(targetUid, targetName) {
     if(!currentVendorUid) return;
-    _currentChatRoom = [currentVendorUid, targetUid].sort().join('_');
     _meetingChatPartner = {uid: targetUid, name: targetName};
     
-    // Configura a Header (gambiarra leve pra sobrescrever a tela de 'Suporte')
     document.getElementById('vendor-typing').style.display = 'none';
     const cMsgs = document.getElementById('chat-messages');
-    if(cMsgs) cMsgs.innerHTML = `<div style="text-align:center;color:var(--gold);font-weight:bold;margin:10px 0;">Chat Exclusivo com ${targetName}</div>`;
-    
-    if(_chatListener) _db().ref(`mensagens_reuniao/${_currentChatRoom}`).off('value', _chatListener);
-    
-    _chatListener = _db().ref(`mensagens_reuniao/${_currentChatRoom}`).on('value', snap => {
-        const msgs = snap.val() || {};
-        if(!cMsgs) return;
-        cMsgs.innerHTML = `<div style="text-align:center;color:var(--gold);font-weight:bold;margin:10px 0;">Chat seguro da sua viagem! (Some após o fim)</div>`;
-        const list = Object.values(msgs).sort((a,b)=>a.ts - b.ts);
-        
-        list.forEach(m => {
-            const isMe = m.senderUid === currentVendorUid;
-            const b = document.createElement('div');
-            b.style.cssText = `max-width:80%; padding:10px 14px; border-radius:18px; margin-bottom:8px; align-self:${isMe?'flex-end':'flex-start'}; background:${isMe?'var(--gold)':'var(--surface2)'}; color:${isMe?'var(--bg)':'var(--text)'}; font-size:0.9rem;`;
-            b.innerHTML = `<div>${m.text}</div><div style="font-size:0.65rem; color:${isMe?'rgba(0,0,0,0.5)':'var(--muted)'}; margin-top:4px; text-align:right;">${_fmtTime(m.ts)}</div>`;
-            cMsgs.appendChild(b);
-            
-            // Marca lidas do parceiro
-            if(!isMe && !m.read) {
-                _db().ref(`mensagens_reuniao/${_currentChatRoom}/${m.id}`).update({read: true});
-            }
-        });
-        setTimeout(() => cMsgs.scrollTop = cMsgs.scrollHeight, 100);
-    });
-    
+    if(!cMsgs.innerHTML.includes('Chat Exclusivo com')) {
+         cMsgs.innerHTML = `<div style="text-align:center;color:var(--gold);font-weight:bold;margin:10px 0;">Chat Exclusivo com ${targetName}</div><div style="text-align:center;color:var(--muted);font-size:0.75rem;margin-bottom:10px;">As mensagens sumirão após a viagem.</div>`;
+    }
     showScreen('chat');
 }
 window.openMeetingChat = openMeetingChat;
 
 async function sendChatMessage() {
-    if(!_currentChatRoom) {
-      // Se não tem sala, provavelmente tá no Suporte legado? Pular por segurança.
+    if(!_meetingChatPartner) {
       showToast('O Chat de Suporte fica em outra tela. Fale com a adm.','warning');
       return;
     }
     const inp = document.getElementById('chat-input');
     const txt = inp.value.trim();
     if(!txt) return;
-    
-    const mId = 'msg_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
     inp.value = '';
     
-    await _db().ref(`mensagens_reuniao/${_currentChatRoom}/${mId}`).set({
-        id: mId,
+    // Mostra na tela imediatamente Local
+    const cMsgs = document.getElementById('chat-messages');
+    const b = document.createElement('div');
+    b.style.cssText = `max-width:80%; padding:10px 14px; border-radius:18px; margin-bottom:8px; align-self:flex-end; background:var(--gold); color:var(--bg); font-size:0.9rem;`;
+    b.innerHTML = `<div>${txt}</div><div style="font-size:0.65rem; color:rgba(0,0,0,0.5); margin-top:4px; text-align:right;">${_fmtTime(Date.now())}</div>`;
+    cMsgs.appendChild(b);
+    setTimeout(() => cMsgs.scrollTop = cMsgs.scrollHeight, 50);
+    
+    // Dispara via Push de Notificação
+    await _db().ref(`meeting/notifications/${_meetingChatPartner.uid}`).set({
+        type: 'chat_message',
         senderUid: currentVendorUid,
         senderName: currentVendorName,
         text: txt,
-        ts: Date.now(),
-        read: false
+        handled: false,
+        timestamp: Date.now()
     });
 }
 window.sendChatMessage = sendChatMessage;
