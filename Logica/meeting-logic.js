@@ -399,7 +399,17 @@ async function driverArrivedHome() {
   const km = _kmFromRoute(driverRealRoute.filter(p => p.lat)), rate = REIMBURSEMENT_RATE[driverVehicleType] || 0.90, reimb = km * rate;
 
   const picksSnap = await _db().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
-  await _db().ref(`meeting/history/${_today()}/${currentVendorUid}`).update({ passengers: picksSnap.val() || {}, vehicleType: driverVehicleType, realRoute: driverRealRoute, totalKm: parseFloat(km.toFixed(2)), reimbursement: parseFloat(reimb.toFixed(2)), completedAt: Date.now(), status: 'completed' });
+  await _db().ref(`meeting/history/${_today()}/${currentVendorUid}`).update({
+    driverName: currentVendorName,
+    driverUid: currentVendorUid,
+    passengers: picksSnap.val() || {},
+    vehicleType: driverVehicleType,
+    realRoute: driverRealRoute,
+    totalKm: parseFloat(km.toFixed(2)),
+    reimbursement: parseFloat(reimb.toFixed(2)),
+    completedAt: Date.now(),
+    status: 'completed'
+  });
   await _db().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'done', status: 'finished' });
   // Limpa o canal em tempo real para os proximos
   await _db().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
