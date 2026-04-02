@@ -292,10 +292,34 @@ function deleteSellerConfirm(uid, name) {
 
 async function deleteSeller(uid) {
     try {
-        await supabase.database().ref(`usuarios/${uid}`).remove();
-        if (typeof showNotification === 'function') showNotification("Vendedor removido com sucesso.", "info");
+        // Exclusão Total: Remove de todos os nós relacionados
+        const removes = [
+            supabase.database().ref(`usuarios/${uid}`).remove(),
+            supabase.database().ref(`vendedores/${uid}`).remove(),
+            supabase.database().ref(`mensagens/${uid}`).remove(),
+            supabase.database().ref(`meeting/participants/${uid}`).remove(),
+            supabase.database().ref(`typing/${uid}`).remove()
+        ];
+        
+        await Promise.all(removes);
+        
+        if (typeof showNotification === 'function') showNotification("Vendedor e todos os dados associados foram excluídos.", "info");
+        
+        // Limpa cache local se existir
+        if (onlineVendorsCache[uid]) delete onlineVendorsCache[uid];
+        if (allChatMessages[uid]) delete allChatMessages[uid];
+        if (liveTrackers[uid]) {
+            if (liveTrackers[uid].marker) liveTrackers[uid].marker.setMap(null);
+            if (liveTrackers[uid].path) liveTrackers[uid].path.setMap(null);
+            delete liveTrackers[uid];
+        }
+
         loadSellersList();
-    } catch (e) { alert('Erro ao excluir: ' + e.message); }
+        renderInboxList();
+    } catch (e) { 
+        console.error("Erro ao excluir vendedor:", e);
+        alert('Erro ao excluir: ' + e.message); 
+    }
 }
 
 function formatDate(dateStr) {
@@ -2518,11 +2542,29 @@ function renderInboxList() {
 function markAsRead(vendorId) {
     const thread = allChatMessages[vendorId];
     if (!thread) return;
+    
+    const updates = {};
+    let hasUnread = false;
+    
     Object.keys(thread).forEach(msgId => {
         if (thread[msgId].sender === 'vendor' && !thread[msgId].read) {
-            database.ref(`mensagens/${vendorId}/${msgId}/read`).set(true);
+            updates[`${msgId}/read`] = true;
+            thread[msgId].read = true; // Atualização otimista local
+            hasUnread = true;
         }
     });
+
+    if (hasUnread) {
+        database.ref(`mensagens/${vendorId}`).update(updates);
+        // Recalcular totalUnread manualmente para resposta visual imediata
+        let total = 0;
+        Object.values(allChatMessages).forEach(t => {
+            Object.values(t).forEach(m => {
+                if (m.sender === 'vendor' && !m.read) total++;
+            });
+        });
+        updateMsgBadge(total);
+    }
 }
 
 function selectInboxChat(vendorId) {
@@ -2533,7 +2575,10 @@ function selectInboxChat(vendorId) {
     database.ref(`mensagens/${vendorId}`).on('value', snap => {
         const thread = snap.val() || {};
         allChatMessages[vendorId] = thread;
-        if (activeChatVendorId === vendorId) renderActiveChat(thread);
+        if (activeChatVendorId === vendorId) {
+            renderActiveChat(thread);
+            markAsRead(vendorId); // Garante que a bolinha suma ao chegar mensagem nova se estiver aberto
+        }
         if (!allChatMessages[vendorId]) allChatMessages[vendorId] = {}; 
         renderInboxList();
     });
