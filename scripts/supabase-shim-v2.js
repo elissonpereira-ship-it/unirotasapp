@@ -127,6 +127,12 @@
             _cachedUser = { uid: data.user.id };
             return { user: _cachedUser };
         },
+        async createUserWithEmailAndPassword(email, password) {
+            const { data, error } = await _realSB.auth.signUp({ email, password });
+            if (error) throw error;
+            _cachedUser = { uid: data.user.id };
+            return { user: _cachedUser };
+        },
         async signOut() { _cachedUser = null; return await _realSB.auth.signOut(); }
     };
 
@@ -140,38 +146,44 @@
 
         async set(d) {
             const p = this.path.split('/').filter(Boolean);
-            if (p[0] === 'meeting' && p[1] === 'participants' && p.length === 3) {
+            if (p[0] === 'usuarios' && p.length === 2) {
+                await _realSB.from('usuarios').upsert({ uid: p[1], ...d, updated_at: new Date().toISOString() });
+            }
+            else if (p[0] === 'meeting' && p[1] === 'participants' && p.length === 3) {
                 await _realSB.from('meeting_participants').upsert({ ..._denormPart({ uid: p[2], ...d }), joined_at: new Date().toISOString() });
             }
-            if (p[0] === 'meeting' && p[1] === 'driverPickups' && p.length === 4) {
+            else if (p[0] === 'meeting' && p[1] === 'driverPickups' && p.length === 4) {
                 await _realSB.from('meeting_driver_pickups').upsert({ driver_uid: p[2], passenger_uid: p[3], passenger_name: d.name || 'Desconhecido', status: d.status || 'accepted', dropoff_status: d.dropoffStatus || 'pending' });
             }
-            if (p[0] === 'meeting' && p[1] === 'notifications' && p.length === 3) {
+            else if (p[0] === 'meeting' && p[1] === 'notifications' && p.length === 3) {
                 await _realSB.from('meeting_notifications').insert({ vendor_uid: p[2], type: d.type, handled: d.handled || false, data: d });
             }
-            if (p[0] === 'meeting' && p[1] === 'history' && p.length === 4) {
+            else if (p[0] === 'meeting' && p[1] === 'history' && p.length === 4) {
                 await _realSB.from('meeting_history').upsert({ date: p[2], vendor_uid: p[3], data: d, updated_at: new Date().toISOString() });
             }
         }
 
         async update(d) {
             const p = this.path.split('/').filter(Boolean);
-            if (p[0] === 'meeting' && p[1] === 'participants' && p.length === 3) {
+            if (p[0] === 'usuarios' && p.length === 2) {
+                await _realSB.from('usuarios').update(d).eq('uid', p[1]);
+            }
+            else if (p[0] === 'meeting' && p[1] === 'participants' && p.length === 3) {
                 await _realSB.from('meeting_participants').update(_denormPart(d)).eq('vendor_uid', p[2]);
             }
-            if (p[0] === 'meeting' && p[1] === 'driverPickups' && p.length === 4) {
+            else if (p[0] === 'meeting' && p[1] === 'driverPickups' && p.length === 4) {
                 let up = {};
                 if (d.status) up.status = d.status;
                 if (d.dropoffStatus) up.dropoff_status = d.dropoffStatus;
                 if (Object.keys(up).length > 0) await _realSB.from('meeting_driver_pickups').update(up).eq('driver_uid', p[2]).eq('passenger_uid', p[3]);
             }
-            if (p[0] === 'meeting' && p[1] === 'notifications' && p.length === 3) {
+            else if (p[0] === 'meeting' && p[1] === 'notifications' && p.length === 3) {
                 await _realSB.from('meeting_notifications').update({ handled: d.handled }).eq('vendor_uid', p[2]);
             }
-            if (p[0] === 'vendedores' && p.length === 2) {
+            else if (p[0] === 'vendedores' && p.length === 2) {
                 await _realSB.from('vendedores').update({ lat: d.lat, lon: d.lon, status: d.status }).eq('uid', p[1]);
             }
-            if (p[0] === 'meeting' && p[1] === 'history' && p.length === 4) {
+            else if (p[0] === 'meeting' && p[1] === 'history' && p.length === 4) {
                 await _realSB.from('meeting_history').upsert({ date: p[2], vendor_uid: p[3], data: d, updated_at: new Date().toISOString() });
             }
         }
@@ -185,20 +197,27 @@
 
         async remove() {
             const p = this.path.split('/').filter(Boolean);
-            if (p[0] === 'meeting' && p[1] === 'participants' && p.length === 3) {
+            if (p[0] === 'usuarios' && p.length === 2) {
+                await _realSB.from('usuarios').delete().eq('uid', p[1]);
+            }
+            else if (p[0] === 'mensagens' && p.length === 2) {
+                await _realSB.from('mensagens').delete().eq('vendor_uid', p[1]);
+            }
+            else if (p[0] === 'vendedores' && p.length === 2) {
+                await _realSB.from('vendedores').delete().eq('uid', p[1]);
+            }
+            else if (p[0] === 'meeting' && p[1] === 'participants' && p.length === 3) {
                 await _realSB.from('meeting_participants').delete().eq('vendor_uid', p[2]);
             }
-            if (p[0] === 'meeting' && p[1] === 'driverPickups' && p.length === 3) {
+            else if (p[0] === 'meeting' && p[1] === 'driverPickups' && p.length === 3) {
                 await _realSB.from('meeting_driver_pickups').delete().eq('driver_uid', p[2]);
             }
-            if (p[0] === 'meeting' && p[1] === 'driverPickups' && p.length === 4) {
+            else if (p[0] === 'meeting' && p[1] === 'driverPickups' && p.length === 4) {
                 await _realSB.from('meeting_driver_pickups').delete().eq('driver_uid', p[2]).eq('passenger_uid', p[3]);
             }
         }
 
         onDisconnect() {
-            // Phantom wrapper to prevent crashes in legacy code.
-            // Supabase Realtime 'presence' is needed for true disconnect tracking.
             return { update: async () => { } };
         }
     }
