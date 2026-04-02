@@ -444,9 +444,15 @@ async function cancelDriver() {
   const ok = await showConfirmDialog('Abortar Transporte?', 'Todos os seus caronas perderão a carona e serão notificados.'); if (!ok) return;
   _stopRouteTracking();
   const snap = await _db().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
-  for (const [uid] of Object.entries(snap.val() || {})) { await _db().ref(`meeting/participants/${uid}`).update({ driverUid: null, embarkStatus: 'idle', role: 'individual' }); await _db().ref(`meeting/notifications/${uid}`).set({ type: 'driverCancelled', driverName: currentVendorName, handled: false, timestamp: Date.now() }); await _db().ref(`meeting/driverPickups/${currentVendorUid}/${uid}`).remove(); }
+  const objs = snap.val() || {};
+  for (const uid of Object.keys(objs)) {
+    await _db().ref(`meeting/participants/${uid}`).update({ driverUid: null, embarkStatus: 'idle', role: 'individual' });
+    await _db().ref(`meeting/notifications/${uid}`).set({ type: 'driverCancelled', driverName: currentVendorName, handled: false, timestamp: Date.now() });
+  }
+  await _db().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
   await _db().ref(`meeting/participants/${currentVendorUid}`).remove();
-  currentMeetingRole = null; driverPassengers = []; showMeetingView('meeting-role-select'); showToast('Você dissolveu o carro.', 'error');
+  currentMeetingRole = null; currentDriverUid = null; driverPassengers = []; 
+  showMeetingView('meeting-role-select'); showToast('Você dissolveu o carro.', 'error');
 }
 const cancelDriverRoute = cancelDriver;
 
@@ -459,9 +465,17 @@ function _listenDriverInfo(driverUid) {
 
     // Chat só aparece se NÃO estiver embarcado
     const btnChat = document.getElementById('menu-driver-chat');
+    const dashAlert = document.getElementById('dashboard-pickup-alert');
+
+    // Se NÃO houver mais motorista (cancelou ou acabou): faxina geral!
+    if (!currentDriverUid) {
+      if (btnChat) btnChat.style.display = 'none';
+      if (dashAlert) dashAlert.innerHTML = '';
+      return; 
+    }
+    
     if (btnChat) btnChat.style.display = (status === 'boarded' || !currentDriverUid) ? 'none' : 'flex';
 
-    const dashAlert = document.getElementById('dashboard-pickup-alert');
     if (dashAlert) {
       if (status === 'boarded') {
         dashAlert.innerHTML = `<div style="background: rgba(34,197,94,0.1); border: 1px solid var(--success); border-radius: 14px; padding: 16px; display: flex; align-items: center; gap: 14px;"><div style="background:var(--success); border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; color:white; flex-shrink:0;"><i data-lucide="map-pin" style="width:22px;height:22px;"></i></div><div><div style="font-size:0.8rem; color:var(--success); font-weight:800; text-transform:uppercase;">🚗 A caminho da reunião...</div><div style="font-size:0.95rem; font-weight:600; margin-top:2px;">Você embarcou no veículo com sucesso.</div></div></div>`;
@@ -492,8 +506,11 @@ function _renderPassengerStatus(d) {
   if (d.embarkStatus === 'boarding_pending') document.getElementById('passenger-boarding-card')?.classList.remove('hidden');
   if (d.embarkStatus === 'boarded') {
     document.getElementById('passenger-boarding-card')?.classList.add('hidden');
+    document.getElementById('btn-passenger-cancel')?.classList.add('hidden');
     localStorage.removeItem('ur_chat_hist'); // Limpa chat ao embarcar
     updateUniversalPresence();
+  } else {
+    document.getElementById('btn-passenger-cancel')?.classList.remove('hidden');
   }
   if (d.embarkStatus === 'idle' && currentMeetingRole === 'passenger') { currentDriverUid = null; showMeetingView('meeting-individual'); showToast('Você deixou o veículo.', 'info'); }
 }
@@ -549,18 +566,28 @@ function listenForMeetingNotifications(uid) {
         }
         break;
       case 'boardingrequest':
-        document.getElementById('passenger-boarding-card')?.classList.remove('hidden');
-        const _pe = document.getElementById('passenger-embark-status');
-        if (_pe) _pe.innerHTML = `<span style="color:var(--success)"><i data-lucide="check-circle"></i> O Motorista Chegou! Dirija-se ao veículo.</span>`;
-        if (window.lucide) lucide.createIcons();
-        showToast(`🚨 O(a) ${d.driverName} chegou na base. CONFIRME SUA ENTRADA no dashboard!`, 'warning');
+        if (currentMeetingRole !== 'driver') {
+          document.getElementById('passenger-boarding-card')?.classList.remove('hidden');
+          const _pe = document.getElementById('passenger-embark-status');
+          if (_pe) _pe.innerHTML = `<span style="color:var(--success)"><i data-lucide="check-circle"></i> O Motorista Chegou! Dirija-se ao veículo.</span>`;
+          if (window.lucide) lucide.createIcons();
+          showToast(`🚨 O(a) ${d.driverName} chegou na base. CONFIRME SUA ENTRADA no dashboard!`, 'warning');
+        }
         break;
       case 'passenger_delayed':
         if (currentMeetingRole === 'driver') showToast(`🚨 O Carona ${d.passengerName} informou um Atraso. Chame-o no chat!`, 'warning');
         break;
       case 'return_started': showToast('A chapa esfriou e o motorista ligou o carro de volta pra casa.', 'info'); document.getElementById('passenger-reunion-status')?.classList.add('hidden'); document.getElementById('passenger-return-card')?.classList.remove('hidden'); break;
       case 'dropoff_request': showToast('Sua garagem? Confirme no app para dar tranquilidade pro Motora!', 'info'); _showPassengerDropoffConfirm(d.driverUid); break;
-      case 'driverCancelled': showToast(`💀 Seu Motorista (${d.driverName}) dissolveu a rota. Vá de Ônibus!`, 'error'); currentDriverUid = null; currentMeetingRole = 'individual'; showMeetingView('meeting-individual'); break;
+      case 'driverCancelled': 
+        showToast(`💀 Seu Motorista (${d.driverName}) dissolveu a rota.`, 'error');
+        currentDriverUid = null; currentMeetingRole = 'individual';
+        const alertBox = document.getElementById('dashboard-pickup-alert');
+        if (alertBox) alertBox.innerHTML = '';
+        document.getElementById('menu-driver-chat').style.display = 'none';
+        localStorage.removeItem('ur_chat_hist');
+        showMeetingView('meeting-individual');
+        break;
 
       case 'chat_message':
         const isChatOpen = (document.getElementById('view-chat').style.display !== 'none' && !document.getElementById('view-chat').classList.contains('hidden'));
