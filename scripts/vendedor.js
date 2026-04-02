@@ -178,13 +178,25 @@ async function handleAuth() {
 
             const cidade = document.getElementById('addr-cidade').value.trim();
             const cep = document.getElementById('addr-cep').value.trim();
-            if (!name || !email || !rua || !cidade) { showToast('Preencha os campos.', 'error'); return; }
-            const res = await firebase.auth().createUserWithEmailAndPassword(emailFirebase, pass);
+            const cc = document.getElementById('user-cc-input').value.trim();
+            if (!name || !email || !rua || !cidade || !cc) { showToast('Preencha todos os campos, incluindo C.Custo.', 'error'); return; }
+            
+            const res = await supabase.auth().createUserWithEmailAndPassword(emailFirebase, pass);
             const uid = res.user.uid;
-            await firebase.database().ref('usuarios/' + uid).set({
-                name, cpf, email, uid, address: { rua, numero: num, bairro, cidade, cep }, registeredAt: Date.now()
+            
+            // Salva no Supabase (via shim) com estrutura plana para o Gestor
+            await supabase.database().ref('usuarios/' + uid).set({
+                name, 
+                cpf, 
+                email, 
+                uid, 
+                cc,
+                address: rua + (num ? ', ' + num : '') + (bairro ? ' - ' + bairro : ''),
+                city: cidade,
+                cep: cep,
+                registeredAt: Date.now()
             });
-            showToast('Sucesso!', 'success');
+            showToast('Cadastro realizado com sucesso!', 'success');
             enterApp(uid);
         } else {
             const res = await firebase.auth().signInWithEmailAndPassword(emailFirebase, pass);
