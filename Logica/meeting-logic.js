@@ -219,10 +219,10 @@ async function startDriverRoute(){
       const pLat=pd?.embarkLat||pd?.lat,pLng=pd?.embarkLng||pd?.lng;
       if(pLat&&pLng)predicted.push({lat:pLat,lng:pLng,label:`🔵 ${p.name}`});
       
-      // MÁGICA 1: O MOTORISTA PASSA O DESTINO NO CONVITE PARA QUEM ESTÁ "OCIOSO"
-      await _db().ref(`meeting/notifications/${p.uid}`).set({type:'pickup_request',driverUid:currentVendorUid,driverName:currentVendorName,locId:meetingLocationData?.id,locName:meetingLocationData?.name,locLat:meetingLocationData?.lat,locLng:meetingLocationData?.lng,handled:false,timestamp:Date.now()});
-      await _db().ref(`meeting/participants/${p.uid}`).update({driverUid:currentVendorUid,driverName:currentVendorName,embarkStatus:'invited'});
-      await _db().ref(`meeting/driverPickups/${currentVendorUid}/${p.uid}`).set({uid:p.uid,name:p.name,lat:pLat||null,lng:pLng||null,status:'invited',order:driverPassengers.indexOf(p)});
+      // MÁGICA 1: O MOTORISTA PASSA O DESTINO E INCLUI O CARONA AUTOMATICAMENTE (NOVO FLUXO DIRETO)
+      await _db().ref(`meeting/notifications/${p.uid}`).set({type:'pickup_assigned',driverUid:currentVendorUid,driverName:currentVendorName,locId:meetingLocationData?.id,locName:meetingLocationData?.name,locLat:meetingLocationData?.lat,locLng:meetingLocationData?.lng,handled:false,timestamp:Date.now()});
+      await _db().ref(`meeting/participants/${p.uid}`).update({driverUid:currentVendorUid,driverName:currentVendorName,embarkStatus:'accepted'});
+      await _db().ref(`meeting/driverPickups/${currentVendorUid}/${p.uid}`).set({uid:p.uid,name:p.name,lat:pLat||null,lng:pLng||null,status:'accepted',order:driverPassengers.indexOf(p)});
     }
     if(meetingLocationData?.lat)predicted.push({lat:meetingLocationData.lat,lng:meetingLocationData.lng,label:`📍 ${meetingLocationData.name}`});
     if(lastLat&&lastLon)predicted.push({lat:lastLat,lng:lastLon,label:'🏠 Casa Motorista (Volta)'});
@@ -435,6 +435,19 @@ const cancelDriverRoute=cancelDriver;
 
 function _listenDriverInfo(driverUid){
   currentDriverUid=driverUid;
+  
+  setTimeout(() => {
+      const btnChat = document.getElementById('menu-driver-chat');
+      if(btnChat) btnChat.style.display='flex';
+      if(typeof _initPassengerFloatChat==='function') _initPassengerFloatChat();
+      
+      const dashAlert = document.getElementById('dashboard-pickup-alert');
+      if(dashAlert && !dashAlert.innerHTML.includes('Motorista à Caminho')){
+          dashAlert.innerHTML = `<div style="background: rgba(191,154,86,0.15); border: 1px solid var(--gold); border-radius: 14px; padding: 16px; display: flex; align-items: center; gap: 14px;"><div style="background:var(--gold); border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; color:var(--bg); flex-shrink:0;"><i data-lucide="car" style="width:22px;height:22px;"></i></div><div><div style="font-size:0.8rem; color:var(--gold); font-weight:800; text-transform:uppercase;">🚗 Motorista à Caminho</div><div style="font-size:0.95rem; font-weight:600; margin-top:2px;">O seu motorista associado já está na sua rota.</div></div></div>`;
+          if(window.lucide) lucide.createIcons();
+      }
+  }, 1000);
+
   if(_driverInfoListener)_db().ref(`vendedores/${driverUid}`).off('value',_driverInfoListener);
   _driverInfoListener=_db().ref(`vendedores/${driverUid}`).on('value',snap=>{
     const d=snap.val();if(!d)return;
@@ -481,22 +494,25 @@ function listenForMeetingNotifications(uid){
     const d=snap.val();if(!d||d.handled)return;
     
     switch(d.type){
-      case 'pickup_request': // 1. MÁGICA 2 OCORRENDO AQUI (Handshake Consentido)
+      case 'pickup_assigned': 
         if(currentMeetingRole!=='driver'){
-            const quero = await showConfirmDialog('🎟️ Convite Especial da Frota', `Aí, o motorista <b>${d.driverName}</b> passou buzinando e quer te dar uma carona. Você entra?`, 'Sim, quero Carona!', 'Vou por mim mesmo');
-            if(!quero) {
-                // MÁGICA: Ele Recusou. Informamos o motorista.
-                await _db().ref(`meeting/driverPickups/${d.driverUid}/${uid}`).update({status:'rejected'});
-                break;
-            }
-            // ACEITOU: Salva o lugar da reunião no cel do Vendedor Ocioso (MÁGICA 1)
+            // FLUXO AUTOMÁTICO: Foi selecionado pelo motorista, não precisa confirmar.
             if(d.locId) meetingLocationData = {id: d.locId, name: d.locName, lat: d.locLat, lng: d.locLng};
             currentMeetingRole = 'passenger';
             showMeetingView('meeting-passenger-active');
             _listenDriverInfo(d.driverUid);
-            await _db().ref(`meeting/participants/${uid}`).update({driverUid:d.driverUid,driverName:d.driverName,embarkStatus:'accepted',role:'passenger'});
-            await _db().ref(`meeting/driverPickups/${d.driverUid}/${uid}`).update({status:'accepted'});
-            _notify(d.driverName,`${d.driverName} já recebeu seu "OK"! Fique pronto.`,'meeting',{uid:d.driverUid,name:d.driverName});
+            
+            // Exibir Painel Inicial
+            const dashAlert = document.getElementById('dashboard-pickup-alert');
+            if(dashAlert) {
+                dashAlert.innerHTML = `<div style="background: rgba(191,154,86,0.15); border: 1px solid var(--gold); border-radius: 14px; padding: 16px; display: flex; align-items: center; gap: 14px;"><div style="background:var(--gold); border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; color:var(--bg); flex-shrink:0;"><i data-lucide="car" style="width:22px;height:22px;"></i></div><div><div style="font-size:0.8rem; color:var(--gold); font-weight:800; text-transform:uppercase;">🚗 Motorista à Caminho</div><div style="font-size:0.95rem; font-weight:600; margin-top:2px;">O <b>${d.driverName}</b> adicionou você na rota.</div></div></div>`;
+                if(window.lucide) lucide.createIcons();
+            }
+            
+            // Mostrar chat no menu lateral
+            document.getElementById('menu-driver-chat').style.display='flex';
+            
+            showToast(`Mochila nas costas! O motorista ${d.driverName} vem te buscar.`, 'success');
         }
         break;
       case 'boardingrequest':showToast(`🚨 O(a) ${d.driverName} chegou na base. CONFIRME SUA ENTRADA no app dele!`,'warning');document.getElementById('passenger-boarding-card')?.classList.remove('hidden');break;
@@ -544,8 +560,81 @@ function _startAutoHomeTimer(){
   _autoHomeTimer=setTimeout(async()=>{const s=await _db().ref(`meeting/participants/${currentVendorUid}/phase`).once('value');if(!['done','finished'].includes(s.val())){showToast('Tempo estourado. Finalizando turnos.','info');await driverArrivedHome();}},AUTO_HOME_MS);
 }
 
-// ── Histórico, Chat e demais Helpers da Antiga interface...
-function _listenChatDot(pUid){ /* Preservado do original */ }
+// ── Histórico, Chat e demais Helpers
+function _listenChatDot(pUid){ 
+  // Na perspectiva do MOTORISTA, ele escuta os caronas dele.
+  const room = [currentVendorUid, pUid].sort().join('_');
+  if(_chatRoomCounts[room]) return; 
+  _chatRoomCounts[room] = true;
+  _db().ref(`mensagens_reuniao/${room}`).on('child_added', snap => {
+    const m = snap.val();
+    if(m.senderUid !== currentVendorUid && !m.read && currentMeetingRole === 'driver') {
+         // Opcional para o Motorista: Notificá-lo que o passageiro pUid respondeu
+         showToast(`💬 Mensagem de Carona: Nova mensagem.`, 'info');
+    }
+  });
+}
+
+function _initPassengerFloatChat(){
+    // Na perspectiva do PASSAGEIRO, ele está prestando atenção no Driver Atual.
+    if(!currentDriverUid) return;
+    const room = [currentVendorUid, currentDriverUid].sort().join('_');
+    _db().ref(`mensagens_reuniao/${room}`).on('child_added', snap => {
+        const m = snap.val();
+        if(m.senderUid !== currentVendorUid && !m.read && m.senderUid === currentDriverUid) {
+            _showFloatingPassengerBubble();
+        }
+    });
+}
+window._initPassengerFloatChat = _initPassengerFloatChat;
+
+function _showFloatingPassengerBubble(){
+   if(document.getElementById('_float-chat-bubble')) return;
+   const c = document.getElementById('floating-notification-container');
+   if(!c) return;
+   const b = document.createElement('div');
+   b.id = '_float-chat-bubble';
+   b.style.cssText = 'background:var(--surface); border:2px solid var(--gold); border-radius:30px; padding:8px 16px; display:flex; align-items:center; gap:12px; box-shadow:0 8px 30px rgba(0,0,0,0.6); pointer-events:auto; cursor:pointer; width:max-content; align-self:flex-end; animation: slideInRight 0.4s ease-out;';
+   b.innerHTML = `
+     <div style="background:var(--gold); border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; color:var(--bg); position:relative;">
+        <i data-lucide="user" style="width:16px; height:16px;"></i>
+        <div style="position:absolute; top:-4px; right:-4px; background:var(--danger); width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.6rem; color:white; font-weight:800;">!</div>
+     </div>
+     <div style="font-size:0.85rem; font-weight:700; color:var(--gold);">Mensagem de Motorista</div>
+   `;
+   
+   // Arrastar para remover
+   let startY = 0, currentY = 0;
+   b.addEventListener('touchstart', e => startY = e.touches[0].clientY);
+   b.addEventListener('touchmove', e => {
+       currentY = e.touches[0].clientY - startY;
+       if(currentY > 0) b.style.transform = `translateY(${currentY}px)`;
+   });
+   b.addEventListener('touchend', e => {
+       if(currentY > 50) {
+           b.style.opacity = '0';
+           setTimeout(()=>b.remove(), 300);
+           // Atualiza badget no sidebar alertando que ainda há msg não lida
+           document.getElementById('badge-driver-chat-qty').style.display='flex';
+           document.getElementById('badge-driver-chat-qty').innerText='!';
+       } else {
+           b.style.transform = `translateY(0)`;
+       }
+   });
+   b.addEventListener('click', () => {
+       b.remove();
+       document.getElementById('badge-driver-chat-qty').style.display='none';
+       openDriverSpecificChat();
+   });
+   c.appendChild(b);
+   if(window.lucide) lucide.createIcons({root: b});
+}
+
+function openDriverSpecificChat(){
+    if(window.closeSidebar) window.closeSidebar();
+    openMeetingChatWithDriver();
+}
+window.openDriverSpecificChat = openDriverSpecificChat;
 function openMeetingChatWithDriver(){if(!currentDriverUid){showToast('Ele não fixou!','error');return;}const n=document.getElementById('passenger-driver-name')?.textContent?.replace('No carro com: ','')||'Motorista';openMeetingChat(currentDriverUid,n);}
 function _notify(sender,text,type,data){if(typeof showGlobalNotification==='function')showGlobalNotification(sender,text,type,data);}
 
