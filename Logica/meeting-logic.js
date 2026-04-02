@@ -260,10 +260,10 @@ function _loadPickupList(){
   });
 }
 
-// Quando o Motorista "Buzina na porta" do carona
 async function driverRequestBoarding(pUid,pName){
   if(lastLat&&lastLon)driverRealRoute.push({type:'pickup',lat:lastLat,lng:lastLon,label:`${pName} embarque`,timestamp:Date.now()});
   await _db().ref(`meeting/driverPickups/${currentVendorUid}/${pUid}`).update({status:'boarding_pending'});
+  await _db().ref(`meeting/participants/${pUid}`).update({embarkStatus:'boarding_pending'});
   await _db().ref(`meeting/notifications/${pUid}`).set({type:'boardingrequest',driverUid:currentVendorUid,driverName:currentVendorName,handled:false,timestamp:Date.now()});
   showToast(`Notificamos ${pName} que você está o aguardando.`,'success');
 }
@@ -638,4 +638,69 @@ window.openDriverSpecificChat = openDriverSpecificChat;
 function openMeetingChatWithDriver(){if(!currentDriverUid){showToast('Ele não fixou!','error');return;}const n=document.getElementById('passenger-driver-name')?.textContent?.replace('No carro com: ','')||'Motorista';openMeetingChat(currentDriverUid,n);}
 function _notify(sender,text,type,data){if(typeof showGlobalNotification==='function')showGlobalNotification(sender,text,type,data);}
 
-console.log(' meeting-logic V4 Injetado ');
+// ── Funções Re-Conectadas de Bate-Papo
+let _currentChatRoom = null;
+let _chatListener = null;
+
+function openMeetingChat(targetUid, targetName) {
+    if(!currentVendorUid) return;
+    _currentChatRoom = [currentVendorUid, targetUid].sort().join('_');
+    _meetingChatPartner = {uid: targetUid, name: targetName};
+    
+    // Configura a Header (gambiarra leve pra sobrescrever a tela de 'Suporte')
+    document.getElementById('vendor-typing').style.display = 'none';
+    const cMsgs = document.getElementById('chat-messages');
+    if(cMsgs) cMsgs.innerHTML = `<div style="text-align:center;color:var(--gold);font-weight:bold;margin:10px 0;">Chat Exclusivo com ${targetName}</div>`;
+    
+    if(_chatListener) _db().ref(`mensagens_reuniao/${_currentChatRoom}`).off('value', _chatListener);
+    
+    _chatListener = _db().ref(`mensagens_reuniao/${_currentChatRoom}`).on('value', snap => {
+        const msgs = snap.val() || {};
+        if(!cMsgs) return;
+        cMsgs.innerHTML = `<div style="text-align:center;color:var(--gold);font-weight:bold;margin:10px 0;">Chat seguro da sua viagem! (Some após o fim)</div>`;
+        const list = Object.values(msgs).sort((a,b)=>a.ts - b.ts);
+        
+        list.forEach(m => {
+            const isMe = m.senderUid === currentVendorUid;
+            const b = document.createElement('div');
+            b.style.cssText = `max-width:80%; padding:10px 14px; border-radius:18px; margin-bottom:8px; align-self:${isMe?'flex-end':'flex-start'}; background:${isMe?'var(--gold)':'var(--surface2)'}; color:${isMe?'var(--bg)':'var(--text)'}; font-size:0.9rem;`;
+            b.innerHTML = `<div>${m.text}</div><div style="font-size:0.65rem; color:${isMe?'rgba(0,0,0,0.5)':'var(--muted)'}; margin-top:4px; text-align:right;">${_fmtTime(m.ts)}</div>`;
+            cMsgs.appendChild(b);
+            
+            // Marca lidas do parceiro
+            if(!isMe && !m.read) {
+                _db().ref(`mensagens_reuniao/${_currentChatRoom}/${m.id}`).update({read: true});
+            }
+        });
+        setTimeout(() => cMsgs.scrollTop = cMsgs.scrollHeight, 100);
+    });
+    
+    showScreen('chat');
+}
+window.openMeetingChat = openMeetingChat;
+
+async function sendChatMessage() {
+    if(!_currentChatRoom) {
+      // Se não tem sala, provavelmente tá no Suporte legado? Pular por segurança.
+      showToast('O Chat de Suporte fica em outra tela. Fale com a adm.','warning');
+      return;
+    }
+    const inp = document.getElementById('chat-input');
+    const txt = inp.value.trim();
+    if(!txt) return;
+    
+    const mId = 'msg_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
+    inp.value = '';
+    
+    await _db().ref(`mensagens_reuniao/${_currentChatRoom}/${mId}`).set({
+        id: mId,
+        senderUid: currentVendorUid,
+        senderName: currentVendorName,
+        text: txt,
+        ts: Date.now(),
+        read: false
+    });
+}
+window.sendChatMessage = sendChatMessage;
+
+console.log(' meeting-logic V4 Injetado (com Chat Exclusivo) ');
