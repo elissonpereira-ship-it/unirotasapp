@@ -1,7 +1,3 @@
-/**
- * UNIROTAS — MEETING-LOGIC.JS v4.0 (Aperto de mão MESTRE)
- * Fluxo Inquebrável: driver / passenger / individual
- */
 'use strict';
 
 const PRESENCE_RADIUS_M = 150;
@@ -443,9 +439,6 @@ async function openDriverMapRoute(isReturn = false) {
   if (wps.length) url += `&waypoints=${wps.join('|')}`; window.open(url, '_blank');
 }
 
-/* ────────────────────────────────────────────────────────
- * O LADO DO PASSAGEIRO: APERTO DE MÃO "HANDSHAKE" 🤜🤛
- * ──────────────────────────────────────────────────────── */
 function _renderIndividualLocation() { const el = document.getElementById('individual-location-details'); if (el && meetingLocationData) el.innerHTML = `<strong>${meetingLocationData.name}</strong><br>${meetingLocationData.address || ''}`; }
 
 function cancelIndividual() { _db().ref(`meeting/participants/${currentVendorUid}`).remove(); currentMeetingRole = null; showMeetingView('meeting-role-select'); }
@@ -461,7 +454,7 @@ async function cancelDriver() {
   }
   await _db().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
   await _db().ref(`meeting/participants/${currentVendorUid}`).remove();
-  currentMeetingRole = null; currentDriverUid = null; driverPassengers = []; 
+  currentMeetingRole = null; currentDriverUid = null; driverPassengers = [];
   showMeetingView('meeting-role-select'); showToast('Você dissolveu o carro.', 'error');
 }
 const cancelDriverRoute = cancelDriver;
@@ -481,9 +474,9 @@ function _listenDriverInfo(driverUid) {
     if (!currentDriverUid) {
       if (btnChat) btnChat.style.display = 'none';
       if (dashAlert) dashAlert.innerHTML = '';
-      return; 
+      return;
     }
-    
+
     if (btnChat) btnChat.style.display = (status === 'boarded' || !currentDriverUid) ? 'none' : 'flex';
 
     if (dashAlert) {
@@ -589,7 +582,7 @@ function listenForMeetingNotifications(uid) {
         break;
       case 'return_started': showToast('A chapa esfriou e o motorista ligou o carro de volta pra casa.', 'info'); document.getElementById('passenger-reunion-status')?.classList.add('hidden'); document.getElementById('passenger-return-card')?.classList.remove('hidden'); break;
       case 'dropoff_request': showToast('Sua garagem? Confirme no app para dar tranquilidade pro Motora!', 'info'); _showPassengerDropoffConfirm(d.driverUid); break;
-      case 'driverCancelled': 
+      case 'driverCancelled':
         showToast(`💀 Seu Motorista (${d.driverName}) dissolveu a rota.`, 'error');
         currentDriverUid = null; currentMeetingRole = 'individual';
         const alertBox = document.getElementById('dashboard-pickup-alert');
@@ -725,4 +718,69 @@ async function sendChatMessage() {
 }
 window.sendChatMessage = sendChatMessage;
 
-console.log(' meeting-logic V4 Injetado (com Chat Exclusivo) ');
+window.startMeetingSimulation = async function() {
+  if (confirm("🚗 Deseja iniciar a simulação do trajeto da Reunião?\n\nO motorista irá 'percorrer' virtualmente a rota de cada carona e finalizar no ponto da reunião.\nLembre-se de aceitar os caronas antes para vê-los no trajeto!")) {
+    
+    // 1. Onde vamos?
+    let routePoints = [];
+    
+    // Adiciona os passageiros aceitos
+    driverPassengers.forEach(p => {
+        if(p.lat && (p.lng || p.lon)) {
+           routePoints.push({ lat: p.lat, lng: p.lng || p.lon, name: p.name });
+        }
+    });
+
+    // Adiciona o destino final
+    if (activeMeetingLocation && activeMeetingLocation.lat) {
+        routePoints.push({ lat: activeMeetingLocation.lat, lng: activeMeetingLocation.lng, name: "Local da Reunião" });
+    }
+
+    if (routePoints.length === 0) {
+        return alert("Nenhum ponto de interesse foi encontrado na rota. Selecione caronas primeiro!");
+    }
+
+    const btnSim = document.getElementById('btn-simulate-route');
+    if (btnSim) {
+        btnSim.innerHTML = '<i data-lucide="loader" class="animate-spin"></i> Simulando...';
+        btnSim.disabled = true;
+        if(window.lucide) lucide.createIcons();
+    }
+
+    showToast("🏎️ Simulação Iniciada! 'Pé na tábua'...", "info");
+    
+    let i = 0;
+    const interval = setInterval(() => {
+        if (i >= routePoints.length) {
+            clearInterval(interval);
+            showToast("🏁 Simulação concluída! Chegamos ao destino.", "success");
+            if (btnSim) {
+                btnSim.innerHTML = '<i data-lucide="play-circle"></i> [DEV] Simular Rota da Reunião';
+                btnSim.disabled = false;
+                if(window.lucide) lucide.createIcons();
+            }
+            return;
+        }
+
+        const point = routePoints[i];
+        showToast(`📍 Passando por: ${point.name}`, "info");
+
+        // Dispara o GPS falso no banco de dados para o sistema de proximidade pegar
+        _db().ref(`vendedores/${currentVendorUid}`).update({
+            lat: point.lat,
+            lon: point.lng,
+            lastLat: point.lat,
+            lastLon: point.lng,
+            status: `Simulando para: ${point.name}`,
+            lastActive: Date.now()
+        });
+
+        // Se houver uma função de atualização de UI de GPS, chama ela (se necessário)
+        if(typeof updateQuickCards === 'function') updateQuickCards();
+
+        i++;
+    }, 4500); // 4.5 segundos por ponto para dar tempo do sistema respirar
+  }
+}
+
+console.log(' meeting-logic V4.1 Injetado (Com Modo de Simulação DEV) ');
