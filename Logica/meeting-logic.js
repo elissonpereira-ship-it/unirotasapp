@@ -79,10 +79,10 @@ async function loadMeetingLocations() {
     list.innerHTML = data.map(loc => `
       <button class="action-btn"
         onclick="selectMeetingLocation(${JSON.stringify(loc).replace(/"/g, '&quot;')})"
-        style="text-align:left;padding:14px 16px;border-radius:14px;
-               background:var(--surface);border:1px solid var(--border)">
-        <div style="font-weight:700;font-size:0.95rem">${loc.name}</div>
-        <div style="font-size:0.78rem;color:var(--muted);margin-top:3px">${loc.address || ''}</div>
+        style="width:100%;text-align:left;padding:16px;border-radius:16px;display:flex;flex-direction:column;gap:4px;
+               margin-bottom:8px;background:#111827;border:1.5px solid rgba(255,255,255,0.15);color:#fff">
+        <div style="font-weight:800;font-size:1rem;color:#ffffff">${loc.name}</div>
+        <div style="font-size:0.75rem;color:#94a3b8;line-height:1.4">${loc.address || ''}</div>
       </button>`).join('');
   } catch (e) {
     console.error(e);
@@ -235,11 +235,11 @@ async function openDriverMapRoute(isReturn) {
 
   // 1. PONTO DE PARTIDA: GPS ou CASA
   let origin = 'Minha localização'; // Fallback pro Maps usar GPS do celular
-  
+
   if (!isReturn) {
     // ── IDA: atual -> paradas -> reunião ──
     const waypoints = [];
-    
+
     // Tenta buscar GPS de cada carona para pegar o endereço exato de onde eles estão
     if (selectedPassengers && selectedPassengers.length > 0) {
       showToast('Buscando localização das caronas...', 'info');
@@ -256,7 +256,7 @@ async function openDriverMapRoute(isReturn) {
         } catch (e) { waypoints.push(p.address || p.name); }
       }
     }
-    
+
     const url = buildMapsUrl('Minha localização', meetingAddr, waypoints);
     window.open(url, '_blank');
   } else {
@@ -405,28 +405,43 @@ async function saveMeetingSession(type) {
 
     stops.push({ label: 'VOLTA CASA', address: home });
 
-    const { data, error } = await window._supabase
-      .from('meeting_sessions')
-      .insert([{
-        driver_id: window._currentUserId || null,
-        driver_name: p.name || 'Vendedor',
-        meeting_location_name: currentMeetingLocation?.name || '',
-        meeting_location_address: currentMeetingLocation?.address || '',
-        meeting_location_lat: currentMeetingLocation?.lat || null,
-        meeting_location_lng: currentMeetingLocation?.lng || null,
-        meeting_type: type,
-        vehicle_type: currentVehicleType,
-        passengers: selectedPassengers,
-        status: 'outbound',
-        date: new Date().toISOString().split('T')[0],
-        created_at: new Date().toISOString(),
-        home_address: home,
-        predicted_route: stops // SALVA O ITINERÁRIO LOGICO PARA O GESTOR
-      }])
-      .select().single();
-    if (error) throw error;
-    currentMeetingId = data.id;
-    console.log('[UniRotas] Sessão salva com Rota Prevista:', currentMeetingId);
+    const payload = {
+      driver_id: window._currentUserId || null,
+      driver_name: p.name || 'Vendedor',
+      meeting_location_name: currentMeetingLocation?.name || '',
+      meeting_location_address: currentMeetingLocation?.address || '',
+      meeting_location_lat: currentMeetingLocation?.lat || null,
+      meeting_location_lng: currentMeetingLocation?.lng || null,
+      meeting_type: type,
+      vehicle_type: currentVehicleType,
+      passengers: selectedPassengers,
+      status: 'outbound',
+      date: new Date().toISOString().split('T')[0],
+      home_address: home,
+      predicted_route: stops
+    };
+
+    if (currentMeetingId) {
+      // SE JÁ EXISTE, APENAS ATUALIZA (EVITA DUPLICATAS)
+      const { error } = await window._supabase
+        .from('meeting_sessions')
+        .update(payload)
+        .eq('id', currentMeetingId);
+      if (error) throw error;
+      console.log('[UniRotas] Sessão atualizada (sem duplicar):', currentMeetingId);
+    } else {
+      // SE NÃO EXISTE, CRIA NOVA
+      const { data, error } = await window._supabase
+        .from('meeting_sessions')
+        .insert([{
+          ...payload,
+          created_at: new Date().toISOString()
+        }])
+        .select().single();
+      if (error) throw error;
+      currentMeetingId = data.id;
+      console.log('[UniRotas] Nova sessão criada:', currentMeetingId);
+    }
   } catch (e) {
     console.error('[UniRotas] Erro ao salvar sessão:', e);
     showToast('Aviso: sessão não registrada.', 'error');
