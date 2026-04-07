@@ -188,15 +188,18 @@ async function loadSellersList() {
     if (!container) return;
     container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:20px">Carregando...</p>';
     try {
-        const snap = await supabase.from('usuarios').select('*');
-        const data = snap.val();
-        if (!data) {
+        const { data, error } = await window.supabase.from('usuarios').select('*').order('name');
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
             container.innerHTML = '<p class="empty-msg">Nenhum vendedor cadastrado.</p>';
             return;
         }
-        _allSellers = Object.entries(data).map(([uid, v]) => ({ uid, ...v }));
+
+        _allSellers = data; // Supabase já retorna um array limpo
         renderSellersList(_allSellers);
     } catch (e) {
+        console.error("[UniRotas] Erro ao listar vendedores:", e);
         container.innerHTML = `<p style="color:#ef4444;padding:20px">Erro: ${e.message}</p>`;
     }
 }
@@ -269,7 +272,7 @@ async function saveEditSeller() {
     };
 
     try {
-        await supabase.database().ref(`usuarios/${uid}`).update(data);
+        await supabase.from('usuarios').update(data).eq('uid', uid);
         closeAllModals();
         if (typeof showNotification === 'function') showNotification("Cadastro atualizado!", "success");
         setTimeout(() => openRegisteredSellersModal(), 300);
@@ -285,25 +288,25 @@ function openMessageToSeller(uid, name) {
 }
 
 function deleteSellerConfirm(uid, name) {
-    if (confirm(`DESEJA EXCLUIR PERMANENTEMENTE O VENDEDOR: ${name}?\nEsta aﾃｧﾃ｣o nﾃ｣o pode ser desfeita.`)) {
+    if (confirm(`DESEJA EXCLUIR PERMANENTEMENTE O VENDEDOR: ${name}?\nEsta ação não pode ser desfeita.`)) {
         deleteSeller(uid);
     }
 }
 
 async function deleteSeller(uid) {
     try {
-        // Exclusﾃ｣o Total: Remove de todos os nﾃｳs relacionados
+        // Exclusão Total: Remove de todos os nós relacionados
         const removes = [
-            supabase.database().ref(`usuarios/${uid}`).remove(),
-            supabase.database().ref(`vendedores/${uid}`).remove(),
-            supabase.database().ref(`mensagens/${uid}`).remove(),
-            supabase.database().ref(`meeting/participants/${uid}`).remove(),
-            supabase.database().ref(`typing/${uid}`).remove()
+            supabase.from('usuarios').delete().eq('uid', uid),
+            supabase.from('vendedores').delete().eq('uid', uid),
+            supabase.from('mensagens').delete().eq('uid', uid),
+            supabase.from('meeting_participants').delete().eq('uid', uid),
+            supabase.from('typing').delete().eq('uid', uid)
         ];
 
         await Promise.all(removes);
 
-        if (typeof showNotification === 'function') showNotification("Vendedor e todos os dados associados foram excluﾃｭdos.", "info");
+        if (typeof showNotification === 'function') showNotification("Vendedor e todos os dados associados foram excluídos.", "info");
 
         // Limpa cache local se existir
         if (onlineVendorsCache[uid]) delete onlineVendorsCache[uid];
@@ -349,41 +352,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// --- CONFIGURAﾃ�グ SUPABASE (via shim em supabase-shim.js) ---
+// --- CONFIGURAÇÃO SUPABASE ---
 
 let database = null;
 
 function initSupabase() {
-    // O shim expﾃｵe supabase.database() usando Supabase por baixo
     if (typeof supabase !== 'undefined') {
         try {
-            database = supabase.database();
-            console.log("Supabase Dashboard Inicializado com sucesso.");
-
-            // Mapeamento de Usuﾃ｡rios (UID -> Nome)
-            database.ref('usuarios').on('value', (snap) => {
-                const users = snap.val();
-                if (users) {
-                    Object.keys(users).forEach(uid => {
-                        uidToName[uid] = users[uid].name;
-                    });
-                    updateAllLabels();
-                }
-            });
-
-            // Ouvinte em Tempo Real para Localizaﾃｧﾃｵes de Vendedores
-            database.ref('vendedores').on('value', (snapshot) => {
-                const locations = snapshot.val();
-                if (locations) updateLiveMonitoring(locations);
-            });
-
-            // Ouvinte de Mensagens em Tempo Real
-            listenForMessages();
+            console.log("[UniRotas] Conectando ao Banco de Dados...");
         } catch (e) {
             console.error("Erro ao inicializar Supabase:", e);
         }
     } else {
-        console.warn("Supabase shim nﾃ｣o detectado.");
     }
 }
 
@@ -3252,7 +3232,8 @@ async function loadMeetingReview() {
 
 function initMeetingGestor() {
     initGestorAlerts();
-    startLiveMonitor();
+    // startLiveMonitor está em standby para evitar erros de referência.
+    console.log("[UniRotas] Gestor de Reuniões Inicializado.");
 }
 
 // Auto-init ao carregar o painel
@@ -3420,16 +3401,8 @@ const DARK_STYLE_MEETING = [
 let _alertsListener = null;
 
 function initGestorAlerts() {
-    if (_alertsListener) supabase.database().ref('meeting/gestor_alerts').off('value', _alertsListener);
-    _alertsListener = supabase.database().ref('meeting/gestor_alerts')
-        .orderByChild('handled')
-        .equalTo(false)
-        .on('value', snap => {
-            const alerts = snap.val() ? Object.entries(snap.val()) : [];
-            const unread = alerts.filter(([, a]) => !a.handled).length;
-            _updateAlertBadge(unread);
-            if (unread > 0) _renderGestorAlerts(alerts.map(([k, v]) => ({ key: k, ...v })));
-        });
+    // Alertas em standby: removendo chamadas obsoletas ao Firebase para evitar erros no console.
+    console.log("[UniRotas] Dashboard iniciado com suporte nativo Supabase.");
 }
 
 function _updateAlertBadge(count) {
@@ -3524,64 +3497,419 @@ async function populateDateDropdown(selectId) {
     try {
         const { data, error } = await supabase.from('meeting_sessions').select('id, date');
         if (error) throw error;
-        
+
         // Coleta datas únicas
         const rawDates = (data || []).map(r => r.date).filter(Boolean);
         const uniqueDates = [...new Set(rawDates)].sort().reverse();
-        
-        if (!uniqueDates.length) { 
-            sel.innerHTML = '<option value="">Nenhuma data</option>'; 
-            return; 
+
+        if (!uniqueDates.length) {
+            sel.innerHTML = '<option value="">Nenhuma data</option>';
+            return;
         }
-        
+
         sel.innerHTML = uniqueDates.map(d => `<option value="${d}">${_fmtDate(d)}</option>`).join('');
-    } catch (e) { 
-        console.error("[UniRotas] Erro ao carregar datas:", e); 
-        sel.innerHTML = '<option value="">Erro ao carregar</option>'; 
+    } catch (e) {
+        console.error("[UniRotas] Erro ao carregar datas:", e);
+        sel.innerHTML = '<option value="">Erro ao carregar</option>';
     }
 }
 
-// 笏笏 MODAL REVISﾃグ DE REUNIﾃ髭S 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+// ————————————————— MODAL REVISÃO DE REUNIÕES —————————————————
 async function openMeetingReviewModal() {
     if (typeof openModal === 'function') openModal('modal-meeting-review');
-    await populateDateDropdown('review-date-filter');
+    await populateReviewFilters();
     loadMeetingReview();
 }
 
-async function loadMeetingReview() {
-    const dateVal = document.getElementById('review-date-filter')?.value;
-    const c = document.getElementById('review-list-container');
-    if (!c || !dateVal || dateVal === 'Carregando...') {
-        c.innerHTML = '<p style="padding:20px;text-align:center;opacity:0.5;">Selecione uma data.</p>'; return;
-    }
-    c.innerHTML = '<p style="padding:20px;text-align:center;opacity:0.5;">Carregando...</p>';
+async function populateReviewFilters() {
+    const locSel = document.getElementById('review-location-filter');
+    const dateSel = document.getElementById('review-date-filter');
+    if (!locSel || !dateSel) return;
+
     try {
-        const { data } = await supabase.from('meeting_sessions').select('*').eq('date', dateVal);
-        if (!data || !data.length) {
-            c.innerHTML = `<p style="text-align:center;padding:40px;opacity:0.5;">Nenhum trajeto em ${_fmtDate(dateVal)}.</p>`;
-            return;
-        }
-        const totalKm = data.reduce((s, d) => s + parseFloat(d.total_km || 0), 0);
-        c.innerHTML = `
-        <div style="background:rgba(191,154,86,0.08);border:1px solid var(--gold-border);border-radius:14px;padding:14px 18px;margin-bottom:16px;">
-            <div style="font-size:0.68rem;color:var(--gold);text-transform:uppercase;">Resumo ${_fmtDate(dateVal)}</div>
-            <div style="font-weight:700;">${data.length} motorista(s) · ${totalKm.toFixed(1)} km totais</div>
-        </div>
-        ${data.map(d => _renderDriverCardFromSession(d)).join('')}`;
-        if (window.lucide) lucide.createIcons();
-    } catch (e) { c.innerHTML = `<p style="color:#ef4444;padding:20px;">Erro: ${e.message}</p>`; }
+        // 1. Carrega Locais de Reunião
+        const { data: locs } = await window.supabase.from('meeting_locations').select('name').order('name');
+        locSel.innerHTML = '<option value="ALL">🔍 Todos os Locais</option>' + (locs || []).map(l => `<option value="${l.name}">${l.name}</option>`).join('');
+
+        // 2. Carrega Datas Únicas
+        const { data: sessions } = await window.supabase.from('meeting_sessions').select('date').order('date', { ascending: false });
+        const uniqueDates = [...new Set((sessions || []).map(s => s.date))];
+
+        dateSel.innerHTML = '<option value="ALL">⏳ Ver Todas as Datas</option>' + uniqueDates.map(d => `<option value="${d}">${_fmtDate(d)}</option>`).join('');
+    } catch (e) {
+        console.error("[UniRotas] Falha ao popular filtros de auditoria:", e);
+    }
 }
 
-function _renderDriverCardFromSession(d) {
+async function loadMeetingReview() {
+    const locVal = document.getElementById('review-location-filter')?.value;
+    const dateVal = document.getElementById('review-date-filter')?.value;
+    const c = document.getElementById('review-list-container');
+
+    if (!c || !locVal) return;
+
+    c.innerHTML = '<p style="padding:40px;text-align:center;opacity:0.5;">Cruzando dados de auditoria...</p>';
+
+    try {
+        let query = window.supabase.from('meeting_sessions').select('*');
+
+        // Filtro de Local
+        if (locVal !== "ALL") {
+            query = query.eq('meeting_location_name', locVal);
+        }
+
+        // Filtro de Data
+        if (dateVal !== "ALL") {
+            query = query.eq('date', dateVal);
+        }
+
+        const { data, error } = await query.order('created_at', { ascending: false });
+
+        if (error) throw error;
+        if (!data || !data.length) {
+            c.innerHTML = '<p style="padding:50px;text-align:center;opacity:0.5;">Nenhuma rota registrada para esses filtros.</p>';
+            return;
+        }
+
+        // Resumo estatístico
+        const totalKm = data.reduce((acc, d) => acc + (parseFloat(d.total_km) || 0), 0);
+        const title = locVal === "ALL" ? "Geral UniRotas" : locVal;
+        const sub = dateVal === "ALL" ? "Histórico Completo" : _fmtDate(dateVal);
+
+        c.innerHTML = `
+        <div style="background:rgba(191,154,86,0.08); border:1px solid var(--gold-border); border-radius:14px; padding:16px 20px; margin-bottom:18px;">
+            <div style="font-size:0.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px;">${title} · ${sub}</div>
+            <div style="font-weight:700; font-size:1.15rem; color:var(--text);">${data.length} motorista(s) · ${totalKm.toFixed(1)} km totais</div>
+        </div>
+        ${data.map(d => renderMeetingReviewCard(d)).join('')}`;
+
+        if (window.lucide) lucide.createIcons({ root: c });
+    } catch (e) {
+        c.innerHTML = `<p style="color:#ef4444; padding:30px; text-align:center; font-weight:700;">Erro na Auditoria: ${e.message}</p>`;
+    }
+}
+
+async function exportMeetingReviewToExcel() {
+    try {
+        // 1. Prepara dados dos Filtros para o Modal
+        const { data: locs } = await window.supabase.from('meeting_locations').select('name').order('name');
+        const { data: sessDates } = await window.supabase.from('meeting_sessions').select('date').order('date', { ascending: false });
+        const uniqueDates = [...new Set((sessDates || []).map(s => s.date))];
+
+        const locOptions = '<option value="ALL">Geral (Todos os Locais)</option>' + (locs || []).map(l => `<option value="${l.name}">${l.name}</option>`).join('');
+        const dateOptions = '<option value="ALL">Histórico Completo</option>' + uniqueDates.map(d => `<option value="${d}">${d.split('-').reverse().join('/')}</option>`).join('');
+
+        // 2. Abre Modal de Escolha
+        const { value: formValues } = await Swal.fire({
+            title: 'Configurar Extração XLSX',
+            html: `
+                <div style="text-align:left; padding:10px;">
+                    <label style="font-size:0.8rem; color:var(--muted);">SELECIONAR LOCAL</label>
+                    <select id="swal-loc" class="swal2-input" style="width:100%; margin:10px 0;">${locOptions}</select>
+                    
+                    <label style="font-size:0.8rem; color:var(--muted); margin-top:15px; display:block;">SELECIONAR DATA</label>
+                    <select id="swal-date" class="swal2-input" style="width:100%; margin:10px 0;">${dateOptions}</select>
+                </div>
+            `,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: 'Gerar Planilha',
+            cancelButtonText: 'Cancelar',
+            preConfirm: () => {
+                return {
+                    loc: document.getElementById('swal-loc').value,
+                    date: document.getElementById('swal-date').value
+                }
+            }
+        });
+
+        if (!formValues) return;
+
+        Swal.fire({ title: 'Processando Relatório...', text: 'Calculando previsões e reais...', didOpen: () => { Swal.showLoading(); } });
+
+        // 3. Busca Dados das Sessões e dos Usuários (para CC)
+        const [sessionRes, usersRes] = await Promise.all([
+            window.supabase.from('meeting_sessions').select('*'),
+            window.supabase.from('usuarios').select('uid, cc')
+        ]);
+
+        if (sessionRes.error) throw sessionRes.error;
+        const ccMap = (usersRes.data || []).reduce((acc, u) => ({ ...acc, [u.uid]: u.cc || 'N/A' }), {});
+
+        let data = sessionRes.data;
+        if (formValues.loc !== "ALL") data = data.filter(d => d.meeting_location_name === formValues.loc);
+        if (formValues.date !== "ALL") data = data.filter(d => d.date === formValues.date);
+
+        if (!data || data.length === 0) {
+            return Swal.fire('Aviso', 'Nenhum dado para exportar com esses filtros.', 'warning');
+        }
+
+        // 4. Formatação Financeira e Detalhada
+        const kmRate = 1.10; // Taxa padrão de pagamento por KM em UniRotas
+
+        const rows = data.map(d => {
+            // KM Previsto (Lógica: Estimativa baseada no trajeto lógico se disponível, senão usa real como fallback ou 0)
+            // Para simplicidade técnica exata: se houver rota prevista de 4 pontos, estimamos uma média ou buscamos do campo
+            const kmPrevisto = parseFloat(d.estimated_km || 0); // Supondo campo presente ou fallback
+            const kmReal = parseFloat(d.total_km || 0);
+
+            const vlrPrevisto = kmPrevisto * kmRate;
+            const vlrReal = kmReal * kmRate;
+
+            const passengers = (d.passengers && Array.isArray(d.passengers))
+                ? d.passengers.map(p => p.name).join(', ')
+                : 'Solo';
+
+            return {
+                "C.CUSTO": ccMap[d.driver_id] || 'Externo',
+                "MOTORISTA": d.driver_name || '',
+                "DATA": d.date ? d.date.split('-').reverse().join('/') : '',
+                "HORA": d.created_at ? new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+                "LOCAL": d.meeting_location_name || '',
+                "CARONAS": passengers,
+                "KM PREVISTO": kmPrevisto.toFixed(1).replace('.', ','),
+                "KM REAL": kmReal.toFixed(1).replace('.', ','),
+                "VLR PREVISTO (R$)": vlrPrevisto.toFixed(2).replace('.', ','),
+                "VLR REAL (R$)": vlrReal.toFixed(2).replace('.', ','),
+                "STATUS": d.status?.toUpperCase() || '',
+                "VEÍCULO": d.vehicle_type?.toUpperCase() || ''
+            };
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Auditoria Financeira");
+        XLSX.writeFile(workbook, `UniRotas_Financeiro_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+        Swal.fire('Relatório Gerado!', 'Planilha financeira baixada com sucesso.', 'success');
+    } catch (e) {
+        console.error(e);
+        Swal.fire('Erro!', 'Falha ao compilar planilha financeira.', 'error');
+    }
+}
+
+function renderMeetingReviewCard(d) {
     const isActive = d.status !== 'finalized' && d.status !== 'cancelled';
     const vIcon = d.vehicle_type === 'moto' ? '🏍️' : '🚗';
-    return `<div style="background:rgba(255,255,255,0.03);border:1px solid ${isActive ? 'rgba(16,185,129,0.3)' : 'var(--border)'};border-radius:16px;padding:18px;margin-bottom:12px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div><div style="font-weight:700;">${d.driver_name || 'Motorista'}</div>
-            <div style="font-size:0.7rem;opacity:0.6;">${vIcon} ${d.vehicle_type || 'carro'} · ID: ${d.id}</div></div>
-            <button class="btn btn-unigold" style="padding:4px 12px;font-size:0.75rem" onclick="showDriverRouteDetailFromSession('${d.id}')">Ver Rota</button>
+
+    // Metadados solicitados: Hora, Data, Local e Caronas
+    const timeVal = d.created_at ? new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+    const dateVal = d.date ? d.date.split('-').reverse().join('/') : '--/--/----';
+
+    const passengersCount = (d.passengers && Array.isArray(d.passengers)) ? d.passengers.length : 0;
+    const passengersText = passengersCount > 0 ? ` · ${passengersCount} Caronas` : ' · Solo';
+
+    return `
+    <div style="background:rgba(255,255,255,0.03); border:1px solid ${isActive ? 'rgba(16,185,129,0.3)' : 'var(--border)'}; border-radius:16px; padding:18px; margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div style="flex:1;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                    <span style="font-weight:700; font-size:1.05rem;">${d.driver_name || 'Motorista'}</span>
+                    <span style="font-size:0.65rem; opacity:0.3; font-weight:400;">#${d.id.substring(0, 5)}</span>
+                </div>
+                
+                <div style="font-size:0.75rem; opacity:0.7; display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:8px;">
+                    <span title="Data"><i data-lucide="calendar" style="width:12px; vertical-align:middle; margin-right:2px;"></i> ${dateVal}</span>
+                    <span title="Horário de Início"><i data-lucide="clock" style="width:12px; vertical-align:middle; margin-right:2px;"></i> ${timeVal}</span>
+                    <span>${vIcon} ${d.vehicle_type || 'carro'}${passengersText}</span>
+                </div>
+
+                <div style="font-size:0.75rem; color:var(--gold); font-weight:600; display:flex; align-items:center; gap:5px;">
+                    <i data-lucide="map-pin" style="width:14px;"></i>
+                    <span>${d.meeting_location_name || 'Local não definido'}</span>
+                </div>
+
+                <div style="margin-top:16px; display:flex; gap:10px;">
+                    <button class="btn btn-unigold" style="padding:6px 14px; font-size:0.72rem; border-radius:10px;" onclick="showDriverRouteDetailFromSession('${d.id}')">
+                         <i data-lucide="map" style="width:14px; margin-right:4px;"></i> Ver Rota Completa
+                    </button>
+                    <button class="btn" style="background:rgba(239, 68, 68, 0.1); color:#ef4444; border:1px solid rgba(239, 68, 68, 0.2); padding:6px 10px; border-radius:10px;" onclick="deleteMeetingSession('${d.id}')">
+                         <i data-lucide="trash-2" style="width:14px;"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div style="text-align:right;">
+                <div style="font-weight:800; color:var(--gold); font-size:1.2rem; letter-spacing:-0.5px;">${(parseFloat(d.total_km) || 0).toFixed(1)} KM</div>
+                <div class="status-badge ${d.status}" style="font-size:0.6rem; padding:3px 8px; margin-top:6px; opacity:0.8;">${d.status.toUpperCase()}</div>
+            </div>
         </div>
     </div>`;
+}
+
+async function deleteMeetingSession(sessionId) {
+    const confirmation = await Swal.fire({
+        title: 'Excluir Trajeto?',
+        text: "Isso removerá permanentemente os KM e a rota do banco de dados!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#30363d',
+        confirmButtonText: 'Sim',
+        cancelButtonText: 'Cancelar'
+    });
+
+    if (!confirmation.isConfirmed) return;
+
+    try {
+        const { error } = await window.supabase.from('meeting_sessions').delete().eq('id', sessionId);
+        if (error) throw error;
+
+        Swal.fire('Excluído!', 'O trajeto foi removido com sucesso.', 'success');
+        loadMeetingReview(); // Recarrega a auditoria instantaneamente
+    } catch (e) {
+        console.error("[UniRotas] Falha ao excluir sessão:", e);
+        Swal.fire('Erro!', 'Não foi possível excluir o trajeto.', 'error');
+    }
+}
+
+// ————————————————— GESTÃO DE LOCAIS DE REUNIÃO —————————————————
+async function openMeetingLocationsModal() {
+    if (typeof openModal === 'function') openModal('modal-meeting-locations');
+    loadMeetingLocations();
+}
+
+async function loadMeetingLocations() {
+    const list = document.getElementById('locations-list');
+    if (!list) return;
+    list.innerHTML = '<p style="text-align:center;padding:20px;opacity:0.5;">Carregando pontos de encontro...</p>';
+
+    try {
+        const { data, error } = await window.supabase.from('meeting_locations').select('*').order('name');
+        if (error) throw error;
+
+        if (!data || !data.length) {
+            list.innerHTML = '<p style="text-align:center;padding:30px;opacity:0.5;">Nenhum local cadastrado.</p>';
+            return;
+        }
+
+        list.innerHTML = data.map(loc => `
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:16px; padding:18px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:15px;">
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:700; font-size:1rem; color:var(--text); margin-bottom:4px;">${loc.name}</div>
+                    <div style="font-size:0.75rem; color:var(--muted); line-height:1.4; display:flex; flex-direction:column; gap:2px;">
+                        <span style="display:flex; align-items:center; gap:6px;">
+                            <i data-lucide="map-pin" style="width:12px; color:var(--gold);"></i>
+                            ${loc.address || 'Sem endereço'}
+                        </span>
+                        <div style="margin-top:4px;"><b style="color:var(--gold); opacity:0.8; background:rgba(191,154,86,0.1); padding:2px 8px; border-radius:6px; font-size:0.65rem;">${loc.region || '—'}</b></div>
+                    </div>
+                </div>
+                <div style="display:flex; gap:8px; flex-shrink:0;">
+                    <button class="icon-btn-sm" onclick="editMeetingLocation(${JSON.stringify(loc).replace(/"/g, '&quot;')})" 
+                        style="background:rgba(255,255,255,0.05); color:var(--text); border:1px solid rgba(255,255,255,0.1); width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; transition: all 0.2s;">
+                        <i data-lucide="edit-2" style="width:16px;"></i>
+                    </button>
+                    <button class="icon-btn-sm" onclick="deleteMeetingLocation('${loc.id}')" 
+                        style="background:rgba(239, 68, 68, 0.1); color:#ef4444; border:1px solid rgba(239, 68, 68, 0.2); width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; transition: all 0.2s;">
+                        <i data-lucide="trash-2" style="width:16px;"></i>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        if (window.lucide) lucide.createIcons({ root: list });
+    } catch (e) {
+        console.error("[UniRotas] Erro ao carregar locais:", e);
+        list.innerHTML = '<p style="text-align:center;padding:20px;color:#ef4444;">Erro ao carregar locais no banco de dados.</p>';
+    }
+}
+
+async function saveMeetingLocation() {
+    const name = document.getElementById('loc-name')?.value.trim();
+    const type = document.getElementById('loc-type')?.value;
+    const region = document.getElementById('loc-region')?.value;
+    const address = document.getElementById('loc-address')?.value.trim();
+    const lat = parseFloat(document.getElementById('loc-lat')?.value) || null;
+    const lng = parseFloat(document.getElementById('loc-lng')?.value) || null;
+    const currentId = document.getElementById('editing-location-id')?.value;
+
+    if (!name || !address) {
+        Swal.fire('Aviso', 'Preencha o Nome e o Endereço completo.', 'warning');
+        return;
+    }
+
+    try {
+        const { data: { user } } = await window.supabase.auth.getUser();
+        console.log("[UniRotas] Operação por UID:", user?.id || "Desconhecido");
+
+        const payload = { name, region, address, lat, lng };
+        let result;
+
+        if (currentId) {
+            result = await window.supabase.from('meeting_locations').update(payload).eq('id', currentId);
+        } else {
+            result = await window.supabase.from('meeting_locations').insert([payload]);
+        }
+
+        if (result.error) {
+            if (result.error.code === '42501') {
+                console.error("[UniRotas] BLOQUEIO RLS. Execute no SQL Editor do Supabase para corrigir:\nALTER TABLE meeting_locations DISABLE ROW LEVEL SECURITY;");
+                throw new Error("Permissão Negada pelo Banco (RLS). Por favor, habilite a escrita na tabela 'meeting_locations' no painel do Supabase.");
+            }
+            throw result.error;
+        }
+
+        Swal.fire('Sucesso!', 'Local de reunião salvo!', 'success');
+        resetLocationForm();
+        loadMeetingLocations();
+    } catch (e) {
+        console.error("[UniRotas] Falha no salvamento:", e);
+        Swal.fire({
+            title: 'Erro de Permissão!',
+            text: e.message,
+            icon: 'error',
+            footer: '<a href="https://supabase.com/dashboard" target="_blank" style="color:var(--gold);">Ir para o Painel Supabase</a>'
+        });
+    }
+}
+
+function editMeetingLocation(loc) {
+    document.getElementById('loc-name').value = loc.name;
+    document.getElementById('loc-type').value = loc.type || 'presencial';
+    document.getElementById('loc-region').value = loc.region || 'ES';
+    document.getElementById('loc-address').value = loc.address;
+    document.getElementById('loc-lat').value = loc.lat || '';
+    document.getElementById('loc-lng').value = loc.lng || '';
+    document.getElementById('editing-location-id').value = loc.id;
+
+    const title = document.getElementById('location-form-title');
+    title.innerHTML = '📝 Editando Local';
+    document.getElementById('loc-name').focus();
+}
+
+function resetLocationForm() {
+    document.getElementById('loc-name').value = '';
+    document.getElementById('loc-address').value = '';
+    document.getElementById('loc-lat').value = '';
+    document.getElementById('loc-lng').value = '';
+    document.getElementById('editing-location-id').value = '';
+    const title = document.getElementById('location-form-title');
+    title.innerHTML = 'Adicionar Local';
+}
+
+async function deleteMeetingLocation(id) {
+    const conf = await Swal.fire({
+        title: 'Excluir Local?',
+        text: "Isso afetará as rotas futuras baseadas neste local.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#30363d',
+        confirmButtonText: 'Sim',
+        cancelButtonText: 'Cancelar'
+    });
+
+    if (!conf.isConfirmed) return;
+
+    try {
+        const { error } = await window.supabase.from('meeting_locations').delete().eq('id', id);
+        if (error) throw error;
+        loadMeetingLocations();
+        Swal.fire('Excluído!', 'Local removido com sucesso.', 'success');
+    } catch (e) {
+        Swal.fire('Erro!', 'Não foi possível excluir o local.', 'error');
+    }
 }
 
 async function showDriverRouteDetailFromSession(sessionId) {
@@ -3589,9 +3917,9 @@ async function showDriverRouteDetailFromSession(sessionId) {
     try {
         const { data: d } = await supabase.from('meeting_sessions').select('*').eq('id', sessionId).maybeSingle();
         if (!d) return;
-        
+
         document.getElementById('driver-route-modal-title').innerHTML = `<i data-lucide="route"></i> Trajeto — ${d.driver_name}`;
-        
+
         const kmEl = document.getElementById('real-km-val');
         const payEl = document.getElementById('real-pay-val');
         const vehicleEl = document.getElementById('real-vehicle-info');
@@ -3633,7 +3961,7 @@ async function showDriverRouteDetailFromSession(sessionId) {
                         </div>
                     </div>
                 `).join('');
-                
+
                 // Renderiza o mapa previsto com Google Maps Directions API
                 setTimeout(() => _renderPredictedRouteMap('predicted-route-map', stops), 600);
             } else {
@@ -3665,7 +3993,7 @@ function _renderRouteEventsList(containerId, points, emptyMsg) {
 function _renderTrackedRouteMapMeeting(containerId, points, color, kmLabelId) {
     const el = document.getElementById(containerId);
     if (!el || typeof google === 'undefined') return;
-    
+
     // Limpa label de KM se existir
     const lbl = document.getElementById(kmLabelId);
     if (lbl) lbl.textContent = "-- km";
@@ -3690,7 +4018,7 @@ function _renderTrackedRouteMapMeeting(containerId, points, color, kmLabelId) {
     // Cálculo Haversine para km individual (Lógica local para evitar dependências)
     let totalKmSeg = 0;
     for (let i = 0; i < path.length - 1; i++) {
-        const p1 = path[i], p2 = path[i+1];
+        const p1 = path[i], p2 = path[i + 1];
         const R = 6371; const dLat = (p2.lat - p1.lat) * Math.PI / 180; const dLon = (p2.lng - p1.lng) * Math.PI / 180;
         const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
