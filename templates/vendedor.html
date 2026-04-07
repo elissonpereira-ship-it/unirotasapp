@@ -51,7 +51,7 @@
             justify-content: space-around !important;
             align-items: center !important;
             z-index: 9999 !important;
-            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(255,255,255,0.02) !important;
+            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(255, 255, 255, 0.02) !important;
             padding-bottom: 0 !important;
             transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
         }
@@ -736,19 +736,23 @@
                 <div class="section-title">QUEM VAI COM VOCÊ?</div>
 
                 <!-- SELETOR DE VEICULO -->
-                <div class="meeting-card" style="margin-bottom:20px; padding:20px; border: 1px solid rgba(255,255,255,0.05);">
-                    <div style="font-size:0.75rem;font-weight:800;color:var(--gold);text-transform:uppercase;margin-bottom:15px;letter-spacing:1px;">
+                <div class="meeting-card"
+                    style="margin-bottom:20px; padding:20px; border: 1px solid rgba(255,255,255,0.05);">
+                    <div
+                        style="font-size:0.75rem;font-weight:800;color:var(--gold);text-transform:uppercase;margin-bottom:15px;letter-spacing:1px;">
                         Meu Veículo</div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <label class="vehicle-option" id="label-vehicle-carro"
                             style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:15px;border-radius:18px;border:2px solid var(--gold);cursor:pointer;background:rgba(191,154,86,0.1);transition:all 0.3s ease;">
-                            <input type="radio" name="vehicle-type" value="carro" checked style="display:none;" onchange="updateVehicleUi('carro')">
+                            <input type="radio" name="vehicle-type" value="carro" checked style="display:none;"
+                                onchange="updateVehicleUi('carro')">
                             <span style="font-size:1.5rem;">🚗</span>
                             <span style="font-weight:700;font-size:0.9rem;">Carro</span>
                         </label>
                         <label class="vehicle-option" id="label-vehicle-moto"
                             style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:15px;border-radius:18px;border:1px solid var(--border);cursor:pointer;background:var(--glass);transition:all 0.3s ease;">
-                            <input type="radio" name="vehicle-type" value="moto" style="display:none;" onchange="updateVehicleUi('moto')">
+                            <input type="radio" name="vehicle-type" value="moto" style="display:none;"
+                                onchange="updateVehicleUi('moto')">
                             <span style="font-size:1.5rem;">🏍️</span>
                             <span style="font-weight:700;font-size:0.9rem;">Moto</span>
                         </label>
@@ -767,25 +771,33 @@
                     style="background:rgba(0,0,0,0.2);border-radius:18px;overflow:hidden;margin-bottom:20px;border:1px solid var(--border);">
                 </div>
 
-                <div class="meeting-card" style="margin-bottom:25px; border: 1px solid rgba(255,255,255,0.05); padding: 20px;">
+                <div class="meeting-card"
+                    style="margin-bottom:25px; border: 1px solid rgba(255,255,255,0.05); padding: 20px;">
                     <div
                         style="font-size:0.7rem;font-weight:800;color:var(--muted);text-transform:uppercase;margin-bottom:12px;letter-spacing:1px;display:flex;justify-content:space-between;align-items:center;">
                         <span>Caronas Selecionados</span>
-                        <div id="selected-count-badge" style="background:var(--gold);color:var(--bg);padding:2px 8px;border-radius:8px;font-size:0.65rem;">0</div>
+                        <div id="selected-count-badge"
+                            style="background:var(--gold);color:var(--bg);padding:2px 8px;border-radius:8px;font-size:0.65rem;">
+                            0</div>
                     </div>
                     <div id="driver-selected-chips" style="min-height:20px;display:flex;flex-wrap:wrap;gap:8px;"></div>
                 </div>
 
                 <div style="display:flex;gap:12px;">
-                    <button class="action-btn" style="flex:2.2; background:linear-gradient(135deg, var(--gold) 0%, #d4af37 100%); color:var(--bg); font-weight:950; height:60px; border: 1.5px solid rgba(255,255,255,0.4);" onclick="startDriverRoute()">
+                    <button class="action-btn"
+                        style="flex:2.2; background:linear-gradient(135deg, var(--gold) 0%, #d4af37 100%); color:var(--bg); font-weight:950; height:60px; border: 1.5px solid rgba(255,255,255,0.4);"
+                        onclick="startDriverRoute()">
                         Iniciar Rota (Convites)
                     </button>
-                    <button class="action-btn" style="flex:1; background:rgba(255,255,255,0.1); border:1.5px solid rgba(255,255,255,0.6); height:60px; font-weight:800; color:#ffffff;"
+                    <button class="action-btn"
+                        style="flex:1; background:rgba(255,255,255,0.1); border:1.5px solid rgba(255,255,255,0.6); height:60px; font-weight:800; color:#ffffff;"
                         onclick="startDriverAlone()">
                         Ir Sozinho
                     </button>
                 </div>
-                <button class="action-btn danger" style="margin-top:16px; height:50px; background:rgba(239, 68, 68, 0.15); border:1.5px solid #ef4444; color:#ffffff; font-weight:700;" onclick="cancelDriverRoute()">
+                <button class="action-btn danger"
+                    style="margin-top:16px; height:50px; background:rgba(239, 68, 68, 0.15); border:1.5px solid #ef4444; color:#ffffff; font-weight:700;"
+                    onclick="cancelDriverRoute()">
                     Abortar / Voltar
                 </button>
             </div>
