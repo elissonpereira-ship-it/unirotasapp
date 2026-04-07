@@ -406,19 +406,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Gerencia a troca visual entre os cards de Carro e Moto
 function updateVehicleUi(type) {
     if (typeof driverVehicleType !== 'undefined') window.driverVehicleType = type;
-    
+
     // Lista de IDs dos labels
     const options = ['carro', 'moto'];
-    
+
     options.forEach(opt => {
         const el = document.getElementById(`label-vehicle-${opt}`);
         if (!el) return;
-        
+
         if (opt === type) {
             // Se for carro, usa DOURADO. Se for moto, usa BRANCO.
             const accentColor = (opt === 'carro') ? '#bf9a56' : '#ffffff';
             const accentBg = (opt === 'carro') ? 'rgba(191, 154, 86, 0.1)' : 'rgba(255, 255, 255, 0.1)';
-            
+
             el.style.border = `2.5px solid ${accentColor}`;
             el.style.background = accentBg;
             el.style.transform = "scale(1.02)";
