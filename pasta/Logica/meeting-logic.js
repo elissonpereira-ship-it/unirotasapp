@@ -245,14 +245,19 @@ async function m_startOutbound() {
     };
 
     try {
-        await window.supabase.database().ref(`meeting_sessions/${sessionId}`).set(sessionData);
-        m_saveState();
-        m_resumeOutbound();
-    } catch (e) {
-        console.error("Erro ao criar sessão:", e);
-        showToast("Erro ao iniciar sessão", "error");
-    }
-}
+      await window.supabase.from('meeting_sessions').insert({
+          id: sessionId,
+          driver_id: window.currentVendorUid,
+          driver_name: window.currentVendorName,
+          status: 'outbound',
+            meeting_location_name: mstate.location?.name,
+              meeting_location_address: mstate.location?.address,
+              meeting_location_lat: mstate.location?.lat,
+              meeting_location_lng: mstate.location?.lng,
+              vehicle_type: mstate.vehicleType || 'carro',
+              passengers: mstate.paxSelected.map(p => ({ uid: p.uid, name: p.name, boarded: false })),
+              date: new Date().toISOString().split('T')[0]
+    });
 
 function m_resumeOutbound() {
     m_showView('m-view-outbound');
