@@ -4,7 +4,11 @@ console.log("UniRotas V2.6: Operando 100% no Supabase");
 let isTracking = false, watchId = null;
 let lastLat = 0, lastLon = 0, lastTime = 0;
 let vMap = null, vDirectionsRenderer = null, vDirectionsService = null;
-let currentVendorName = '', currentVendorUid = '';
+// ESTADO GLOBAL DO VENDEDOR (Exposto para outros módulos)
+window.currentVendorUid = "";
+window.currentVendorName = "";
+let currentTracking = false;
+let updateInterval = null;
 let isSignupMode = false, generatedCode = null, pendingUser = null;
 let isProcessingAuth = false;
 let chatSub = null; // Canal ativo de comunicação em tempo real
