@@ -753,6 +753,7 @@ window.m_removePaxFromSession = async function (uid) {
                 m_state.currentSession.passengers = newList; // Atualiza localmente imediato
                 m_showToast("Carona removida.", "info");
                 m_renderOutboundList();
+                m_renderReturnList();
             } catch (e) { console.error(e); }
         }
     );
@@ -1173,8 +1174,8 @@ async function m_paxConfirmPresence() {
                 // LIMPEZA DO CHAT (Carona -> Motorista)
                 await m_cleanupChatAfterMeeting(m_state.currentSession.driver_id);
 
-                m_showToast("Presença Confirmada!", "success");
-                m_showView('m-view-at-meeting');
+                m_cleanupSession();
+                m_showToast("Presença confirmada! Aguarde um motorista para o retorno...", "success");
             } catch (e) { console.error(e); }
         }
     );
